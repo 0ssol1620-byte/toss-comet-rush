@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="코멧 러시 아이콘">
+  <defs>
+    <radialGradient id="bg" cx="48%" cy="22%" r="78%">
+      <stop offset="0%" stop-color="#123B56"/>
+      <stop offset="52%" stop-color="#07131F"/>
+      <stop offset="100%" stop-color="#02070D"/>
+    </radialGradient>
+    <linearGradient id="ship" x1="128" x2="384" y1="84" y2="428">
+      <stop offset="0%" stop-color="#F8FBFF"/>
+      <stop offset="54%" stop-color="#D9F7FF"/>
+      <stop offset="100%" stop-color="#00C2FF"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="360" cy="152" r="116" fill="#00C2FF" opacity=".13"/>
+  <circle cx="146" cy="378" r="154" fill="#FFC857" opacity=".1"/>
+  <path d="M114 350c92-14 180-72 266-174" fill="none" stroke="#00C2FF" stroke-width="34" stroke-linecap="round" opacity=".22"/>
+  <path d="M153 385c44-56 67-112 71-168 4-55 19-90 47-105 28 15 43 50 47 105 4 56 27 112 71 168-43-19-82-30-118-30s-75 11-118 30Z" fill="url(#ship)" filter="url(#glow)"/>
+  <path d="M271 120c20 31 30 72 30 123 0 45 14 86 43 124-28-9-52-14-73-14V120Z" fill="#00C2FF" opacity=".32"/>
+  <ellipse cx="271" cy="238" rx="37" ry="29" fill="#07131F"/>
+  <ellipse cx="257" cy="226" rx="10" ry="8" fill="#F8FBFF" opacity=".82"/>
+  <path d="M227 380c21 22 36 48 44 78 8-30 23-56 44-78-16-6-31-9-44-9s-28 3-44 9Z" fill="#FFC857"/>
+  <path d="M96 154 122 96l26 58 58 26-58 26-26 58-26-58-58-26 58-26Z" fill="#FFC857"/>
+  <path d="M382 321 399 284l17 37 37 17-37 17-17 37-17-37-37-17 37-17Z" fill="#F8FBFF" opacity=".82"/>
+</svg>

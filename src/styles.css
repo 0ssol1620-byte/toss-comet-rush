@@ -1,0 +1,106 @@
+:root {
+  font-family: Pretendard, SUIT, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  color: #f5fbff;
+  background: #06111c;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 50% -20%, rgba(0, 194, 255, 0.35), transparent 34rem),
+    radial-gradient(circle at 80% 90%, rgba(255, 200, 87, 0.16), transparent 24rem),
+    linear-gradient(160deg, #06111c 0%, #071b2a 48%, #061019 100%);
+}
+
+button,
+canvas {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-shell {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
+  place-items: center;
+}
+
+.game-root {
+  position: relative;
+  width: min(100vw, calc(100dvh * 390 / 844), 520px);
+  height: min(100dvh, calc(100vw * 844 / 390));
+  max-width: 520px;
+  max-height: 100dvh;
+  overflow: hidden;
+  aspect-ratio: 390 / 844;
+  border-inline: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 28px 90px rgba(0, 7, 15, 0.5);
+}
+
+.game-root canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ambient {
+  position: fixed;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 999px;
+  filter: blur(42px);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.ambient-a {
+  top: 5%;
+  left: 9%;
+  background: #00c2ff;
+  animation: driftA 8s ease-in-out infinite alternate;
+}
+
+.ambient-b {
+  right: 6%;
+  bottom: 6%;
+  background: #ffc857;
+  animation: driftB 11s ease-in-out infinite alternate;
+}
+
+@keyframes driftA {
+  from {
+    transform: translate3d(-2rem, -1rem, 0) scale(0.9);
+  }
+  to {
+    transform: translate3d(2rem, 1rem, 0) scale(1.08);
+  }
+}
+
+@keyframes driftB {
+  from {
+    transform: translate3d(1rem, 1rem, 0) scale(0.82);
+  }
+  to {
+    transform: translate3d(-2rem, -1rem, 0) scale(1.05);
+  }
+}
