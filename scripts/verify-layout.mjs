@@ -172,7 +172,9 @@ assert(source.includes('SCORE_TIER_SIZE = 50000'), '50k salary alert tier is not
 assert(source.includes('STAGES: StageDefinition[]'), 'stage chain definitions are not implemented');
 assert(source.includes('EVOLUTIONS: EvolutionDefinition[]'), 'upgrade evolution definitions are not implemented');
 assert(source.includes('salary_alert'), 'salary alert analytics are not implemented');
-assert(source.includes('stage_select'), 'stage selection analytics are not implemented');
+assert(source.includes('stage_progression_hint'), 'stage progression hint analytics are not implemented');
+assert(source.includes('power_item_collect'), 'power item collection analytics are not implemented');
+assert(source.includes('stage_map_event'), 'stage map event analytics are not implemented');
 
 function exportedFiles() {
   const home = homedir();
