@@ -135,7 +135,7 @@ async function waitReady(cdp, label) {
   throw new Error(`${label} did not reach ready state: ${JSON.stringify(lastValue)}`);
 }
 
-async function captureCase({ screen, stress = false, viewport }) {
+async function captureCase({ screen, stress = false, viewport, queryParams = {}, fileLabel = screen }) {
   const profile = await mkdtemp(join(tmpdir(), `comet-render-${screen}-`));
   const port = 9410 + Math.floor(Math.random() * 500);
   const chrome = spawn(chromePath, [
@@ -158,7 +158,11 @@ async function captureCase({ screen, stress = false, viewport }) {
     const runtimeErrors = [];
 
     cdp.on('Runtime.exceptionThrown', (params) => {
-      runtimeErrors.push(params.exceptionDetails?.text ?? 'runtime exception');
+      runtimeErrors.push(
+        params.exceptionDetails?.exception?.description ??
+        params.exceptionDetails?.text ??
+        'runtime exception'
+      );
     });
     cdp.on('Log.entryAdded', (params) => {
       if (params.entry?.level === 'error') {
@@ -179,7 +183,7 @@ async function captureCase({ screen, stress = false, viewport }) {
       screenHeight: viewport.height,
     });
 
-    const query = new URLSearchParams({ screen });
+    const query = new URLSearchParams({ screen, ...queryParams });
     if (stress) {
       query.set('stress', '1');
     }
@@ -195,7 +199,7 @@ async function captureCase({ screen, stress = false, viewport }) {
       fromSurface: true,
     });
     const bytes = Buffer.from(screenshot.data, 'base64');
-    const name = `${viewport.name}-${screen}${stress ? '-stress' : ''}.png`;
+    const name = `${viewport.name}-${fileLabel}${stress ? '-stress' : ''}.png`;
     await writeFile(join(outDir, name), bytes);
     await writeFile(join(outDir, name.replace(/\.png$/, '.json')), `${JSON.stringify(state, null, 2)}\n`);
 
@@ -238,6 +242,7 @@ for (const viewport of viewports) {
 }
 
 await captureCase({ screen: 'gameover', stress: true, viewport: viewports[1] });
+await captureCase({ screen: 'onboarding', queryParams: { step: '1' }, fileLabel: 'onboarding-items', viewport: viewports[1] });
 await writeFile(join(outDir, 'manifest.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), viewports, screens }, null, 2)}\n`);
 
 if (failures.length > 0) {

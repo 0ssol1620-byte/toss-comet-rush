@@ -1016,6 +1016,7 @@ class CometRushScene extends Phaser.Scene {
 
     const titleCopy = [
       '금고를 직접 움직여보세요',
+      '먹을 것과 피할 것을 먼저 볼게요',
       '현금봉투를 눌러 수집하세요',
       '빨간 고지서는 피하세요',
       '가까이 피하면 각성합니다',
@@ -1024,6 +1025,7 @@ class CometRushScene extends Phaser.Scene {
     ][step] ?? '준비 완료';
     const bodyCopy = [
       '아래 금고를 좌우로 드래그하면 이동합니다.',
+      '초록/금색 보상은 먹고, 빨간 고지서는 피하세요.',
       '좋은 보상은 반짝입니다. 먹으면 잔고와 콤보가 오릅니다.',
       '오른쪽 안전 구역을 눌러 충돌을 피하세요.',
       '너무 멀리 피하지 말고 안전선 근처를 눌러보세요.',
@@ -1052,7 +1054,7 @@ class CometRushScene extends Phaser.Scene {
     body.setOrigin(0.5);
     this.fitText(body, 292, 10);
 
-    const skip = this.createButton(GAME_WIDTH / 2, 784, 166, 44, step >= 5 ? '시작하기' : '건너뛰기', step >= 5 ? PALETTE.aqua : PALETTE.gold, () => {
+    const skip = this.createButton(GAME_WIDTH / 2, 784, 166, 44, step >= 6 ? '시작하기' : '건너뛰기', step >= 6 ? PALETTE.aqua : PALETTE.gold, () => {
       this.completeOnboarding();
     });
 
@@ -1061,12 +1063,14 @@ class CometRushScene extends Phaser.Scene {
     if (step === 0) {
       this.renderOnboardingDrag(layer);
     } else if (step === 1) {
-      this.renderOnboardingCollect(layer);
+      this.renderOnboardingLegend(layer);
     } else if (step === 2) {
-      this.renderOnboardingDodge(layer);
+      this.renderOnboardingCollect(layer);
     } else if (step === 3) {
-      this.renderOnboardingNearMiss(layer);
+      this.renderOnboardingDodge(layer);
     } else if (step === 4) {
+      this.renderOnboardingNearMiss(layer);
+    } else if (step === 5) {
       this.renderOnboardingUpgrade(layer);
     } else {
       this.renderOnboardingReady(layer);
@@ -1117,6 +1121,74 @@ class CometRushScene extends Phaser.Scene {
       this.advanceOnboarding(260);
     });
     layer.add([ring, cash, hint, hand]);
+  }
+
+  private renderOnboardingLegend(layer: Phaser.GameObjects.Container) {
+    const board = this.add.rectangle(GAME_WIDTH / 2, 530, 328, 472, 0x06131f, 0.72);
+    board.setStrokeStyle(1, PALETTE.aqua, 0.32);
+    const goodTitle = this.add.text(GAME_WIDTH / 2, 330, '먹으면 좋은 것', {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '19px',
+      fontStyle: '900',
+      color: '#66ffc2',
+    }).setOrigin(0.5);
+    const badTitle = this.add.text(GAME_WIDTH / 2, 552, '피해야 하는 고지서', {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '19px',
+      fontStyle: '900',
+      color: '#ffccd5',
+    }).setOrigin(0.5);
+
+    const good = [
+      { key: 'shard', anim: 'cash-float', label: '현금봉투', desc: '잔고/콤보 상승' },
+      { key: 'coin', anim: 'coin-shine', label: '월급코인', desc: '성장 재화' },
+      { key: 'boost', anim: 'coupon-pop', label: '시간쿠폰', desc: '남은 시간 회복' },
+      { key: 'pulse', anim: 'payday-pulse', label: 'PAYDAY', desc: '월급각성 시작' },
+    ];
+    const bad = [
+      { key: 'hazard', anim: 'debt-spin', label: '카드값', desc: '피하기' },
+      { key: 'rent', anim: 'rent-spin', label: '월세', desc: '피하기' },
+      { key: 'tax', anim: 'tax-spin', label: '세금', desc: '피하기' },
+      { key: 'sub', anim: 'sub-spin', label: '구독료', desc: '피하기' },
+    ];
+
+    const entries: Phaser.GameObjects.GameObject[] = [board, goodTitle, badTitle];
+    good.forEach((item, index) => {
+      entries.push(...this.createOnboardingLegendItem(82 + index * 75, 414, item.key, item.anim, item.label, item.desc, PALETTE.green));
+    });
+    bad.forEach((item, index) => {
+      entries.push(...this.createOnboardingLegendItem(82 + index * 75, 638, item.key, item.anim, item.label, item.desc, PALETTE.red));
+    });
+
+    const next = this.createButton(GAME_WIDTH / 2, 720, 222, 50, '알겠어요', PALETTE.aqua, () => {
+      this.advanceOnboarding(180);
+    });
+    layer.add([...entries, next]);
+  }
+
+  private createOnboardingLegendItem(x: number, y: number, key: string, anim: string, label: string, desc: string, color: number) {
+    const tile = this.add.rectangle(x, y, 68, 128, 0x082234, 0.94);
+    tile.setStrokeStyle(1, color, 0.42);
+    const sprite = this.add.sprite(x, y - 30, key).setScale(0.62).play(anim);
+    const name = this.add.text(x, y + 12, label, {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '11px',
+      fontStyle: '900',
+      color: '#f8fbff',
+    }).setOrigin(0.5);
+    this.fitText(name, 58, 8);
+    const body = this.add.text(x, y + 38, desc, {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '9px',
+      fontStyle: '800',
+      color: '#b8d9e7',
+      wordWrap: { width: 58, useAdvancedWrap: true },
+    }).setOrigin(0.5);
+    return [tile, sprite, name, body];
   }
 
   private renderOnboardingDodge(layer: Phaser.GameObjects.Container) {
@@ -1903,6 +1975,11 @@ class CometRushScene extends Phaser.Scene {
 
     if (screen === 'onboarding') {
       this.showOnboarding(true);
+      const step = Number.parseInt(params.get('step') ?? '0', 10);
+      if (Number.isFinite(step)) {
+        this.onboardingStep = Phaser.Math.Clamp(step, 0, 6);
+        this.renderOnboardingStep();
+      }
       return;
     }
 
@@ -2474,6 +2551,7 @@ class CometRushScene extends Phaser.Scene {
     onClick: () => void,
   ) {
     const group = this.add.container(x, y);
+    const hit = this.add.zone(0, 0, width + 20, height + 20);
     const bg = this.add.rectangle(0, 0, width, height, 0x06131f, 0.78);
     bg.setStrokeStyle(1, PALETTE.aqua, 0.28);
     const text = this.add.text(0, 0, label, {
@@ -2484,14 +2562,10 @@ class CometRushScene extends Phaser.Scene {
       color: '#d9f7ff',
     });
     text.setOrigin(0.5);
-    group.add([bg, text]);
+    group.add([bg, text, hit]);
     group.setDepth(22);
     group.setSize(width, height);
-    group.setInteractive(
-      new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),
-      Phaser.Geom.Rectangle.Contains,
-    );
-    group.on('pointerdown', () => {
+    const fire = () => {
       this.bridge.haptic('tap');
       this.tweens.add({
         targets: group,
@@ -2500,7 +2574,9 @@ class CometRushScene extends Phaser.Scene {
         yoyo: true,
         onComplete: onClick,
       });
-    });
+    };
+    hit.setInteractive();
+    hit.on('pointerdown', fire);
 
     return { group, label: text };
   }
@@ -2515,6 +2591,7 @@ class CometRushScene extends Phaser.Scene {
     onClick: () => void,
   ) {
     const group = this.add.container(x, y);
+    const hit = this.add.zone(0, 0, width + 26, height + 24);
     const shadow = this.add.rectangle(0, 8, width, height, 0x000000, 0.28);
     shadow.setOrigin(0.5);
     const bg = this.add.rectangle(0, 0, width, height, color, 0.96);
@@ -2531,23 +2608,30 @@ class CometRushScene extends Phaser.Scene {
     });
     text.setOrigin(0.5);
     this.fitText(text, width - 24, height > 50 ? 16 : 12);
-    group.add([shadow, bg, shine, text]);
+    group.add([shadow, bg, shine, text, hit]);
     this.applyGlow(bg, color, 0.18);
     group.setSize(width, height);
-    group.setInteractive(
-      new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),
-      Phaser.Geom.Rectangle.Contains,
-    );
-    group.on('pointerdown', () => {
+    let locked = false;
+    const fire = () => {
+      if (locked) {
+        return;
+      }
+
+      locked = true;
       this.bridge.haptic('tap');
       this.tweens.add({
         targets: group,
         scale: 0.96,
         duration: 70,
         yoyo: true,
-        onComplete: onClick,
+        onComplete: () => {
+          locked = false;
+          onClick();
+        },
       });
-    });
+    };
+    hit.setInteractive();
+    hit.on('pointerdown', fire);
 
     return group;
   }
@@ -2791,9 +2875,9 @@ class CometRushScene extends Phaser.Scene {
       ctx.arc(0, 0, 44, 1.1, 5.7);
       ctx.stroke();
       ctx.fillStyle = '#f8fbff';
-      ctx.font = '900 12px sans-serif';
+      ctx.font = '900 15px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('CARD', 0, 4);
+      ctx.fillText('카드', 0, 5);
     });
 
     makeSheet('rent', 108, 108, 8, (ctx, frame) => {
@@ -2823,9 +2907,9 @@ class CometRushScene extends Phaser.Scene {
       ctx.closePath();
       ctx.fill();
       ctx.fillStyle = '#f8fbff';
-      ctx.font = '900 11px sans-serif';
+      ctx.font = '900 14px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('RENT', 0, 17);
+      ctx.fillText('월세', 0, 17);
     });
 
     makeSheet('tax', 108, 108, 8, (ctx, frame) => {
@@ -2851,9 +2935,9 @@ class CometRushScene extends Phaser.Scene {
       ctx.lineWidth = 4;
       ctx.stroke();
       ctx.fillStyle = '#261104';
-      ctx.font = '900 18px sans-serif';
+      ctx.font = '900 17px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('TAX', 0, 6);
+      ctx.fillText('세금', 0, 6);
     });
 
     makeSheet('sub', 108, 108, 8, (ctx, frame) => {
@@ -2883,9 +2967,9 @@ class CometRushScene extends Phaser.Scene {
       ctx.arc(12, -10, 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#07131f';
-      ctx.font = '900 12px sans-serif';
+      ctx.font = '900 14px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('SUB', 0, 18);
+      ctx.fillText('구독', 0, 18);
     });
 
     makeSheet('pulse', 88, 88, 6, (ctx, frame) => {

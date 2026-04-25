@@ -16,7 +16,7 @@ const html = `<!doctype html>
       content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
     />
     <meta name="theme-color" content="#07131f" />
-    <meta name="description" content="60초 원터치 생존 스코어 어택, 월급 방어전" />
+    <meta name="description" content="60초 아케이드 생존 러너, 월급 방어전" />
     <title>월급 방어전</title>
     <style>${css}</style>
   </head>
