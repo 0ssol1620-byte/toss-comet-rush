@@ -1307,17 +1307,48 @@ class CometRushScene extends Phaser.Scene {
 
   private createHandCue(x: number, y: number, dx: number, dy: number) {
     const group = this.add.container(x, y);
-    const palm = this.add.circle(0, 0, 18, PALETTE.white, 0.94);
-    const tip = this.add.rectangle(0, -22, 13, 32, PALETTE.white, 0.94);
-    tip.setStrokeStyle(1, PALETTE.aqua, 0.55);
-    const label = this.add.text(0, 3, '손', {
-      align: 'center',
-      fontFamily: 'Pretendard, sans-serif',
-      fontSize: '11px',
-      fontStyle: '900',
-      color: '#07131f',
-    }).setOrigin(0.5);
-    group.add([tip, palm, label]);
+    const ring = this.add.ellipse(0, 0, 48, 48, PALETTE.aqua, 0);
+    ring.setStrokeStyle(2, PALETTE.aqua, 0.62);
+
+    const glow = this.add.circle(0, 0, 20, PALETTE.aqua, 0.16);
+    glow.setBlendMode(Phaser.BlendModes.ADD);
+
+    const pointer = this.add.graphics();
+    pointer.fillStyle(PALETTE.white, 0.96);
+    pointer.lineStyle(1.5, PALETTE.aqua, 0.46);
+    pointer.fillRoundedRect(-6, -34, 12, 42, 7);
+    pointer.strokeRoundedRect(-6, -34, 12, 42, 7);
+    pointer.fillStyle(0xdff9ff, 0.98);
+    pointer.fillCircle(0, -35, 8);
+    pointer.lineStyle(1.5, PALETTE.white, 0.8);
+    pointer.strokeCircle(0, -35, 8);
+    pointer.fillStyle(PALETTE.white, 0.92);
+    pointer.fillCircle(0, 5, 17);
+    pointer.fillStyle(0xdff9ff, 0.9);
+    pointer.fillCircle(-6, 0, 4);
+
+    const sparkle = this.add.image(15, -42, 'spark').setScale(0.34).setTint(PALETTE.aqua).setAlpha(0.72);
+    sparkle.setBlendMode(Phaser.BlendModes.ADD);
+    group.add([ring, glow, pointer, sparkle]);
+
+    this.tweens.add({
+      targets: ring,
+      scale: 1.34,
+      alpha: 0.08,
+      duration: 760,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    this.tweens.add({
+      targets: sparkle,
+      alpha: 0.18,
+      angle: 34,
+      duration: 620,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
     this.tweens.add({
       targets: group,
       x: x + dx,

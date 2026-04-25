@@ -243,6 +243,7 @@ for (const viewport of viewports) {
 
 await captureCase({ screen: 'gameover', stress: true, viewport: viewports[1] });
 await captureCase({ screen: 'onboarding', queryParams: { step: '1' }, fileLabel: 'onboarding-items', viewport: viewports[1] });
+await captureCase({ screen: 'onboarding', queryParams: { step: '2' }, fileLabel: 'onboarding-collect', viewport: viewports[1] });
 await writeFile(join(outDir, 'manifest.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), viewports, screens }, null, 2)}\n`);
 
 if (failures.length > 0) {
