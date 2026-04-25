@@ -1,8 +1,0 @@
-node_modules/
-dist/
-artifacts/
-play-direct.html
-.env
-.env.*
-*.log
-*.tsbuildinfo
