@@ -320,6 +320,9 @@ class CometRushScene extends Phaser.Scene {
   private gameOverLayer?: Phaser.GameObjects.Container;
   private muteHudLabel?: Phaser.GameObjects.Text;
   private audio?: AudioContext;
+  private masterGain?: GainNode;
+  private musicLoop?: Phaser.Time.TimerEvent;
+  private musicStep = 0;
   private muted = false;
   private onboardingStep = 0;
   private onboardingReplay = false;
@@ -1187,13 +1190,17 @@ class CometRushScene extends Phaser.Scene {
     }).setOrigin(0.5);
     const hand = this.createHandCue(GAME_WIDTH / 2 + 58, 492, 0, 36);
     cash.setInteractive(new Phaser.Geom.Circle(0, 0, 46), Phaser.Geom.Circle.Contains);
-    cash.on('pointerdown', () => {
+    const cashZone = this.add.zone(GAME_WIDTH / 2, 442, 150, 150).setInteractive();
+    const collectCash = () => {
       this.bridge.haptic('success');
+      this.playTone([659, 880, 1175], 0.045, 0.085, 'triangle');
       this.burst(cash.x, cash.y, PALETTE.green, 16);
       this.popText(cash.x, cash.y - 44, '+현금', '#66ffc2');
       this.advanceOnboarding(260);
-    });
-    layer.add([ring, cash, hint, hand]);
+    };
+    cash.on('pointerdown', collectCash);
+    cashZone.on('pointerdown', collectCash);
+    layer.add([ring, cash, hint, hand, cashZone]);
   }
 
   private renderOnboardingLegend(layer: Phaser.GameObjects.Container) {
@@ -1705,6 +1712,10 @@ class CometRushScene extends Phaser.Scene {
   private toggleMute() {
     this.muted = !this.muted;
     this.muteHudLabel?.setText(this.muted ? '무음' : '음');
+    if (!this.muted) {
+      this.unlockAudio();
+      this.playTone([523, 659, 784], 0.045, 0.08, 'triangle');
+    }
     this.bridge.log('audio_toggle', { muted: this.muted }, 'event');
 
     if (this.phase === 'paused') {
@@ -2422,6 +2433,12 @@ class CometRushScene extends Phaser.Scene {
       this.bridge.haptic(this.combo % 8 === 0 ? 'tickMedium' : 'tickWeak');
     }
 
+    if (actor.kind === 'coin') {
+      this.playTone([988, 1319], 0.038, 0.075, 'triangle');
+    } else if (actor.kind === 'shard') {
+      this.playTone([659 + Math.min(8, this.combo) * 28], 0.045, 0.055, 'triangle');
+    }
+
     if (actor.kind === 'pulse') {
       this.startFever();
     }
@@ -2434,6 +2451,7 @@ class CometRushScene extends Phaser.Scene {
       this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 1.8 + this.upgrades.overtime * 0.28 + (this.hasEvolution('thirteenthPay') ? 0.45 : 0));
       this.overdrive = Math.min(100, this.overdrive + 8);
       this.bridge.haptic('softMedium');
+      this.playTone([523, 784, 1047], 0.04, 0.08, 'triangle');
       this.popText(actor.image.x, actor.image.y - 18, '+1.8초', '#66ffc2');
       this.tweens.add({
         targets: [this.timerText, this.timerCard],
@@ -3831,28 +3849,34 @@ class CometRushScene extends Phaser.Scene {
     if (kind === 'magnetItem') {
       this.magnetMs = Math.max(this.magnetMs, 6200 + this.upgrades.magnet * 420);
       this.popText(x, y - 34, '급여자석 6초', '#66ffc2');
+      this.playTone([440, 660, 990], 0.045, 0.09, 'sine');
       this.bridge.haptic('success');
     } else if (kind === 'shieldItem') {
       this.upgrades.shield += 1;
       this.popText(x, y - 34, '파산보험 +1', '#cfc4ff');
+      this.playTone([392, 523, 784], 0.05, 0.08, 'triangle');
       this.bridge.haptic('success');
     } else if (kind === 'autopilotItem') {
       this.autopilotMs = Math.max(this.autopilotMs, 4400);
       this.popText(x, y - 34, '오토파일럿', '#cfc4ff');
+      this.playTone([330, 494, 659, 988], 0.035, 0.075, 'square');
       this.bridge.haptic('softMedium');
     } else if (kind === 'freezeItem') {
       this.freezeMs = Math.max(this.freezeMs, 5200);
       this.freezeHazards();
       this.popText(x, y - 34, '채무동결', '#9defff');
+      this.playTone([784, 523, 392], 0.05, 0.075, 'sine');
       this.bridge.haptic('softMedium');
     } else if (kind === 'droneItem') {
       this.droneMs = Math.max(this.droneMs, 7200);
       this.popText(x, y - 34, '재무팀 드론', '#9defff');
+      this.playTone([740, 880, 1175], 0.04, 0.08, 'square');
       this.bridge.haptic('success');
     } else if (kind === 'boosterItem') {
       this.boosterMs = Math.max(this.boosterMs, 3300);
       this.score += 420;
       this.popText(x, y - 34, '월급 부스터', '#ffc857');
+      this.playTone([196, 392, 784, 1175], 0.035, 0.09, 'sawtooth');
       this.bridge.haptic('confetti');
     }
 
@@ -4023,6 +4047,10 @@ class CometRushScene extends Phaser.Scene {
 
   private unlockAudio() {
     if (this.audio != null) {
+      if (this.audio.state === 'suspended') {
+        void this.audio.resume();
+      }
+      this.startMusicLoop();
       return;
     }
 
@@ -4033,9 +4061,47 @@ class CometRushScene extends Phaser.Scene {
     }
 
     this.audio = new AudioCtor();
+    this.masterGain = this.audio.createGain();
+    this.masterGain.gain.setValueAtTime(0.18, this.audio.currentTime);
+    this.masterGain.connect(this.audio.destination);
+    this.startMusicLoop();
   }
 
-  private playTone(notes: number[], length: number) {
+  private startMusicLoop() {
+    if (this.musicLoop != null) {
+      return;
+    }
+
+    this.musicLoop = this.time.addEvent({
+      delay: 210,
+      loop: true,
+      callback: () => this.playMusicStep(),
+    });
+  }
+
+  private playMusicStep() {
+    if (this.audio == null || this.masterGain == null || this.muted || this.phase === 'gameover') {
+      return;
+    }
+
+    const stage = this.currentStage().id;
+    const lead = [392, 494, 587, 659, 587, 494, 440, 523];
+    const bass = [98, 98, 123, 98, 147, 123, 110, 123];
+    const index = this.musicStep % lead.length;
+    const pressure = this.phase === 'playing' ? Phaser.Math.Clamp(0.014 + this.difficulty * 0.004 + stage * 0.0015, 0.016, 0.034) : 0.01;
+
+    if (index % 2 === 0) {
+      this.playTone([bass[index]], 0.12, pressure * 0.75, 'sine');
+    }
+
+    if (this.phase === 'playing' || index % 4 === 0) {
+      this.playTone([lead[index] * (this.feverMs > 0 ? 1.5 : 1)], 0.08, pressure, this.feverMs > 0 ? 'square' : 'triangle');
+    }
+
+    this.musicStep += 1;
+  }
+
+  private playTone(notes: number[], length: number, volume = 0.075, type: OscillatorType = 'triangle') {
     if (this.audio == null || this.muted) {
       return;
     }
@@ -4049,13 +4115,13 @@ class CometRushScene extends Phaser.Scene {
         return;
       }
 
-      oscillator.type = 'triangle';
+      oscillator.type = type;
       oscillator.frequency.value = note;
       gain.gain.setValueAtTime(0.0001, now + index * length);
-      gain.gain.exponentialRampToValueAtTime(0.04, now + index * length + 0.012);
+      gain.gain.exponentialRampToValueAtTime(volume, now + index * length + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + index * length + length);
       oscillator.connect(gain);
-      gain.connect(this.audio.destination);
+      gain.connect(this.masterGain ?? this.audio.destination);
       oscillator.start(now + index * length);
       oscillator.stop(now + index * length + length + 0.02);
     });
