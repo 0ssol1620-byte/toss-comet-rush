@@ -7,10 +7,14 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v10';
+const BUILD_VERSION = 'v11';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.25;
+const MAX_DIFFICULTY = 4.15;
+const MAX_ACTOR_SPEED = 820;
+const MAX_ACTORS = 38;
+const MAX_FRAME_DELTA = 50;
 
 type Phase = 'menu' | 'tutorial' | 'onboarding' | 'playing' | 'upgrade' | 'paused' | 'gameover';
 type ActorKind =
@@ -59,6 +63,7 @@ type Actor = {
   speed: number;
   value: number;
   wobble: number;
+  baseScale: number;
   nearMissed?: boolean;
 };
 
@@ -321,10 +326,10 @@ class CometRushScene extends Phaser.Scene {
   private muteHudLabel?: Phaser.GameObjects.Text;
   private audio?: AudioContext;
   private masterGain?: GainNode;
-  private musicLoop?: Phaser.Time.TimerEvent;
+  private originalBgm?: AudioBufferSourceNode;
+  private originalBgmGain?: GainNode;
   private testBgm?: HTMLAudioElement;
   private testBgmActive = false;
-  private musicStep = 0;
   private muted = false;
   private onboardingStep = 0;
   private onboardingReplay = false;
@@ -383,18 +388,19 @@ class CometRushScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
-    this.updateStars(delta);
+    const frameDelta = Math.min(delta, MAX_FRAME_DELTA);
+    this.updateStars(frameDelta);
 
     if (this.phase !== 'playing') {
       return;
     }
 
-    this.timeLeft = Math.max(0, this.timeLeft - delta / 1000);
+    this.timeLeft = Math.max(0, this.timeLeft - frameDelta / 1000);
     this.difficulty = this.effectiveDifficulty();
-    this.spawnElapsed += delta;
-    this.feverMs = Math.max(0, this.feverMs - delta);
-    this.updatePowerItemTimers(delta);
-    this.arenaShake = Math.max(0, this.arenaShake - delta);
+    this.spawnElapsed += frameDelta;
+    this.feverMs = Math.max(0, this.feverMs - frameDelta);
+    this.updatePowerItemTimers(frameDelta);
+    this.arenaShake = Math.max(0, this.arenaShake - frameDelta);
     this.maybeTriggerExpenseStorm();
     this.maybeTriggerStageMapEvent();
 
@@ -404,11 +410,11 @@ class CometRushScene extends Phaser.Scene {
     }
 
     this.updateAutopilotTarget();
-    this.updatePlayer(delta);
-    this.spawnLoop(delta);
-    this.updateActors(delta);
+    this.updatePlayer(frameDelta);
+    this.spawnLoop(frameDelta);
+    this.updateActors(frameDelta);
     this.maybeAnnounceAlertTier();
-    this.updateCombo(delta);
+    this.updateCombo(frameDelta);
     this.updateHud();
 
     if (this.timeLeft <= 0) {
@@ -1759,6 +1765,9 @@ class CometRushScene extends Phaser.Scene {
     if (this.testBgm != null) {
       this.testBgm.muted = this.muted;
     }
+    if (this.originalBgmGain != null && this.audio != null) {
+      this.originalBgmGain.gain.setTargetAtTime(this.muted || this.testBgmActive ? 0 : 0.24, this.audio.currentTime, 0.035);
+    }
     if (!this.muted) {
       this.unlockAudio();
       this.playTone([523, 659, 784], 0.045, 0.08, 'triangle');
@@ -2262,6 +2271,10 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private spawnLoop(delta: number) {
+    if (this.actors.length >= MAX_ACTORS) {
+      return;
+    }
+
     const clutch = this.timeLeft <= 10;
     const stage = this.currentStage();
     const tier = this.scoreAlertTier();
@@ -2295,14 +2308,22 @@ class CometRushScene extends Phaser.Scene {
       this.spawnActor('shard');
     }
 
-    if (Math.random() < 0.16 + this.difficulty * 0.025 + tier * 0.012 + stage.spawnBonus * 0.4) {
-      this.time.delayedCall(130, () => this.spawnActor(Math.random() < 0.34 ? this.pickHazardKind() : Math.random() < 0.28 ? this.pickStagePowerItem() : 'shard'));
+    if (this.actors.length < MAX_ACTORS - 1 && Math.random() < 0.16 + this.difficulty * 0.025 + tier * 0.012 + stage.spawnBonus * 0.4) {
+      this.time.delayedCall(130, () => {
+        if (this.phase === 'playing' && this.actors.length < MAX_ACTORS) {
+          this.spawnActor(Math.random() < 0.34 ? this.pickHazardKind() : Math.random() < 0.28 ? this.pickStagePowerItem() : 'shard');
+        }
+      });
     }
 
     void delta;
   }
 
   private spawnActor(kind: ActorKind, forcedX?: number) {
+    if (this.actors.length >= MAX_ACTORS) {
+      return;
+    }
+
     const imageKey =
       this.isHazard(kind)
         ? kind
@@ -2322,22 +2343,25 @@ class CometRushScene extends Phaser.Scene {
     const speedMultiplier = this.scoreSpeedMultiplier();
     const rewardMultiplier = this.rewardMultiplier();
     const baseValue = kind === 'coin' ? 220 : kind === 'pulse' ? 90 : kind === 'boost' ? 70 : this.isPowerItem(kind) ? 110 : 55 + this.save.meta.luck * 3;
+    const baseSpeed =
+      (this.isHazard(kind) ? (kind === 'rent' ? 230 : kind === 'sub' ? 188 : 205) : this.isPowerItem(kind) ? 138 : kind === 'pulse' ? 152 : kind === 'boost' ? 148 : 176) *
+      this.difficulty *
+      speedMultiplier *
+      (isFever && this.isHazard(kind) ? 0.76 : 1) *
+      (this.isHazard(kind) ? slowFactor : 1);
+    const baseScale = this.isHazard(kind) ? Phaser.Math.FloatBetween(0.92, 1.2) : this.isPowerItem(kind) ? Phaser.Math.FloatBetween(0.9, 1.08) : Phaser.Math.FloatBetween(0.86, 1.18);
     const actor: Actor = {
       kind,
       image,
       radius: this.isHazard(kind) ? (kind === 'tax' ? 34 : 30) : this.isPowerItem(kind) ? 28 : kind === 'pulse' ? 26 : kind === 'boost' ? 24 : 21,
-      speed:
-        (this.isHazard(kind) ? (kind === 'rent' ? 230 : kind === 'sub' ? 188 : 205) : this.isPowerItem(kind) ? 138 : kind === 'pulse' ? 152 : kind === 'boost' ? 148 : 176) *
-        this.difficulty *
-        speedMultiplier *
-        (isFever && this.isHazard(kind) ? 0.76 : 1) *
-        (this.isHazard(kind) ? slowFactor : 1),
+      speed: Math.min(MAX_ACTOR_SPEED, baseSpeed),
       value: Math.round(baseValue * rewardMultiplier),
       wobble: Phaser.Math.FloatBetween(0.014, 0.031),
+      baseScale,
     };
 
     image.setDepth(this.isHazard(kind) ? 8 : 7);
-    image.setScale(this.isHazard(kind) ? Phaser.Math.FloatBetween(0.92, 1.2) : this.isPowerItem(kind) ? Phaser.Math.FloatBetween(0.9, 1.08) : Phaser.Math.FloatBetween(0.86, 1.18));
+    image.setScale(baseScale);
     image.setBlendMode(this.isHazard(kind) ? Phaser.BlendModes.NORMAL : Phaser.BlendModes.ADD);
     image.play(
       kind === 'hazard'
@@ -2383,7 +2407,8 @@ class CometRushScene extends Phaser.Scene {
       actor.image.y += actor.speed * dt;
       actor.image.x += wave * dt;
       actor.image.rotation += dt * (this.isHazard(actor.kind) ? 1.9 : actor.kind === 'boost' ? 5.4 : 3.8);
-      actor.image.scaleX += Math.sin(this.time.now * 0.006 + actor.wobble * 100) * 0.0008;
+      const pulse = 1 + Math.sin(this.time.now * 0.006 + actor.wobble * 100) * 0.018;
+      actor.image.setScale(actor.baseScale * pulse, actor.baseScale);
 
       const distance = Phaser.Math.Distance.Between(playerX, playerY, actor.image.x, actor.image.y);
       const magnetRange = this.magnetRange();
@@ -2649,19 +2674,34 @@ class CometRushScene extends Phaser.Scene {
       return;
     }
 
-    const nearbyHazard = this.actors
-      .filter((actor) => this.isHazard(actor.kind) && actor.image.y > SAFE_TOP && actor.image.y < PLAYER_Y + 18)
-      .sort((a, b) => Math.abs(a.image.y - PLAYER_Y) - Math.abs(b.image.y - PLAYER_Y))[0];
+    let nearbyHazard: Actor | undefined;
+    let nearbyHazardDelta = Number.POSITIVE_INFINITY;
+    let reward: Actor | undefined;
+    let rewardDistance = Number.POSITIVE_INFINITY;
+
+    for (const actor of this.actors) {
+      if (this.isHazard(actor.kind)) {
+        if (actor.image.y > SAFE_TOP && actor.image.y < PLAYER_Y + 18) {
+          const yDelta = Math.abs(actor.image.y - PLAYER_Y);
+          if (yDelta < nearbyHazardDelta) {
+            nearbyHazard = actor;
+            nearbyHazardDelta = yDelta;
+          }
+        }
+      } else if (actor.image.y > SAFE_TOP && actor.image.y < PLAYER_Y) {
+        const distance = Phaser.Math.Distance.Between(actor.image.x, actor.image.y, this.player.x, this.player.y);
+        if (distance < rewardDistance) {
+          reward = actor;
+          rewardDistance = distance;
+        }
+      }
+    }
 
     if (nearbyHazard != null && Math.abs(nearbyHazard.image.x - this.player.x) < 96) {
       const left = nearbyHazard.image.x < GAME_WIDTH / 2 ? nearbyHazard.image.x + 126 : nearbyHazard.image.x - 126;
       this.targetX = Phaser.Math.Clamp(left, 38, GAME_WIDTH - 38);
       return;
     }
-
-    const reward = this.actors
-      .filter((actor) => !this.isHazard(actor.kind) && actor.image.y > SAFE_TOP && actor.image.y < PLAYER_Y)
-      .sort((a, b) => Phaser.Math.Distance.Between(a.image.x, a.image.y, this.player.x, this.player.y) - Phaser.Math.Distance.Between(b.image.x, b.image.y, this.player.x, this.player.y))[0];
 
     if (reward != null) {
       this.targetX = Phaser.Math.Clamp(reward.image.x, 38, GAME_WIDTH - 38);
@@ -3765,7 +3805,7 @@ class CometRushScene extends Phaser.Scene {
     const timePressure = (ROUND_SECONDS - this.timeLeft) / 28;
     const alertPressure = this.scoreAlertTier() * 0.2;
     const stagePressure = this.currentStage().speedBonus * 1.2;
-    return 1 + timePressure + alertPressure + stagePressure;
+    return Phaser.Math.Clamp(1 + timePressure + alertPressure + stagePressure, 1, MAX_DIFFICULTY);
   }
 
   private scoreSpeedMultiplier() {
@@ -4101,7 +4141,7 @@ class CometRushScene extends Phaser.Scene {
       if (this.audio.state === 'suspended') {
         void this.audio.resume();
       }
-      this.startMusicLoop();
+      this.startOriginalBgmLoop();
       return;
     }
 
@@ -4116,7 +4156,7 @@ class CometRushScene extends Phaser.Scene {
     this.masterGain.gain.setValueAtTime(0.18, this.audio.currentTime);
     this.masterGain.connect(this.audio.destination);
     this.startTestBgmIfRequested();
-    this.startMusicLoop();
+    this.startOriginalBgmLoop();
   }
 
   private startTestBgmIfRequested() {
@@ -4134,62 +4174,79 @@ class CometRushScene extends Phaser.Scene {
     void this.testBgm.play()
       .then(() => {
         this.testBgmActive = true;
+        if (this.originalBgmGain != null && this.audio != null) {
+          this.originalBgmGain.gain.setTargetAtTime(0, this.audio.currentTime, 0.035);
+        }
       })
       .catch(() => {
         this.testBgmActive = false;
+        this.startOriginalBgmLoop();
       });
   }
 
-  private startMusicLoop() {
-    if (this.musicLoop != null) {
+  private startOriginalBgmLoop() {
+    if (this.audio == null || this.masterGain == null || this.originalBgm != null || this.testBgmActive) {
       return;
     }
 
-    this.musicLoop = this.time.addEvent({
-      delay: 170,
-      loop: true,
-      callback: () => this.playMusicStep(),
-    });
+    const source = this.audio.createBufferSource();
+    const gain = this.audio.createGain();
+    source.buffer = this.createOriginalBgmBuffer();
+    source.loop = true;
+    gain.gain.setValueAtTime(this.muted ? 0 : 0.24, this.audio.currentTime);
+    source.connect(gain);
+    gain.connect(this.masterGain);
+    source.start();
+    this.originalBgm = source;
+    this.originalBgmGain = gain;
   }
 
-  private playMusicStep() {
-    if (this.testBgmActive || this.audio == null || this.masterGain == null || this.muted || this.phase === 'gameover') {
-      return;
+  private createOriginalBgmBuffer() {
+    if (this.audio == null) {
+      throw new Error('Audio context is not ready');
     }
 
-    const stage = this.currentStage().id;
-    const lead = [392, 494, 587, 784, 659, 587, 494, 740, 440, 554, 659, 880, 740, 659, 587, 494];
-    const bass = [98, 98, 123, 98, 147, 147, 123, 110, 98, 98, 123, 98, 165, 147, 123, 110];
-    const index = this.musicStep % lead.length;
-    const playing = this.phase === 'playing';
-    const pressure = playing ? Phaser.Math.Clamp(0.018 + this.difficulty * 0.0045 + stage * 0.0018, 0.02, 0.044) : 0.011;
-    const feverLift = this.feverMs > 0 ? 1.5 : 1;
+    const sampleRate = this.audio.sampleRate;
+    const bpm = 176;
+    const beat = 60 / bpm;
+    const bars = 8;
+    const duration = beat * 4 * bars;
+    const buffer = this.audio.createBuffer(1, Math.floor(sampleRate * duration), sampleRate);
+    const data = buffer.getChannelData(0);
+    const bassPattern = [98, 98, 123, 98, 147, 147, 123, 110, 98, 98, 123, 98, 165, 147, 123, 110];
+    const leadPattern = [392, 494, 587, 784, 659, 587, 494, 740, 440, 554, 659, 880, 740, 659, 587, 494];
+    const twoPi = Math.PI * 2;
 
-    if (playing && index % 4 === 0) {
-      this.playKick(0.085 + stage * 0.004);
+    for (let i = 0; i < data.length; i += 1) {
+      const t = i / sampleRate;
+      const stepFloat = t / (beat / 2);
+      const step = Math.floor(stepFloat);
+      const stepTime = (stepFloat - step) * (beat / 2);
+      const beatIndex = Math.floor(t / beat);
+      const barBeat = beatIndex % 4;
+      const bassFreq = bassPattern[step % bassPattern.length];
+      const leadFreq = leadPattern[step % leadPattern.length];
+      const bassEnv = Math.max(0, 1 - stepTime / (beat * 0.92));
+      const leadEnv = Math.max(0, 1 - stepTime / (beat * 0.42));
+      const kickT = t % beat;
+      const snareT = t % (beat * 2);
+      const hatT = t % (beat / 2);
+      const kick = barBeat === 0 || barBeat === 2 ? Math.sin(twoPi * (72 - kickT * 70) * kickT) * Math.exp(-kickT * 18) * 0.78 : 0;
+      const snareSeed = Math.sin((i + step * 97) * 12.9898) * 43758.5453;
+      const snareNoise = (snareSeed - Math.floor(snareSeed)) * 2 - 1;
+      const snare = barBeat === 1 || barBeat === 3 ? snareNoise * Math.exp(-snareT * 12) * 0.2 : 0;
+      const hatSeed = Math.sin((i + 41) * 78.233) * 16317.912;
+      const hatNoise = (hatSeed - Math.floor(hatSeed)) * 2 - 1;
+      const hat = hatNoise * Math.exp(-hatT * 52) * 0.055;
+      const bass = Math.sin(twoPi * bassFreq * t) * bassEnv * 0.22;
+      const leadPhase = (leadFreq * t) % 1;
+      const leadWave = leadPhase < 0.5 ? 1 : -1;
+      const lead = leadWave * leadEnv * 0.075;
+      const sidechain = 0.72 + Math.min(0.28, kickT * 10);
+      data[i] = Phaser.Math.Clamp((kick + snare + hat + (bass + lead) * sidechain) * 0.72, -0.92, 0.92);
     }
 
-    if (playing && index % 8 === 4) {
-      this.playNoiseBurst(0.065, 0.07, 1200, 'bandpass');
-    }
-
-    if (playing && index % 2 === 1) {
-      this.playNoiseBurst(0.022, 0.028, 7600, 'highpass');
-    }
-
-    if (index % 2 === 0) {
-      this.playTone([bass[index]], 0.15, pressure * 0.92, 'sine');
-    }
-
-    if (playing || index % 4 === 0) {
-      this.playTone([lead[index] * feverLift], 0.095, pressure, this.feverMs > 0 ? 'square' : 'triangle');
-    }
-
-    if (playing && (index === 3 || index === 11)) {
-      this.playTone([lead[index] * 1.5 * feverLift, lead[index] * 2 * feverLift], 0.09, pressure * 0.46, 'triangle');
-    }
-
-    this.musicStep += 1;
+    return buffer;
   }
 
   private playKick(volume: number) {
