@@ -4073,7 +4073,7 @@ class CometRushScene extends Phaser.Scene {
     }
 
     this.musicLoop = this.time.addEvent({
-      delay: 210,
+      delay: 170,
       loop: true,
       callback: () => this.playMusicStep(),
     });
@@ -4085,20 +4085,84 @@ class CometRushScene extends Phaser.Scene {
     }
 
     const stage = this.currentStage().id;
-    const lead = [392, 494, 587, 659, 587, 494, 440, 523];
-    const bass = [98, 98, 123, 98, 147, 123, 110, 123];
+    const lead = [392, 494, 587, 784, 659, 587, 494, 740, 440, 554, 659, 880, 740, 659, 587, 494];
+    const bass = [98, 98, 123, 98, 147, 147, 123, 110, 98, 98, 123, 98, 165, 147, 123, 110];
     const index = this.musicStep % lead.length;
-    const pressure = this.phase === 'playing' ? Phaser.Math.Clamp(0.014 + this.difficulty * 0.004 + stage * 0.0015, 0.016, 0.034) : 0.01;
+    const playing = this.phase === 'playing';
+    const pressure = playing ? Phaser.Math.Clamp(0.018 + this.difficulty * 0.0045 + stage * 0.0018, 0.02, 0.044) : 0.011;
+    const feverLift = this.feverMs > 0 ? 1.5 : 1;
 
-    if (index % 2 === 0) {
-      this.playTone([bass[index]], 0.12, pressure * 0.75, 'sine');
+    if (playing && index % 4 === 0) {
+      this.playKick(0.085 + stage * 0.004);
     }
 
-    if (this.phase === 'playing' || index % 4 === 0) {
-      this.playTone([lead[index] * (this.feverMs > 0 ? 1.5 : 1)], 0.08, pressure, this.feverMs > 0 ? 'square' : 'triangle');
+    if (playing && index % 8 === 4) {
+      this.playNoiseBurst(0.065, 0.07, 1200, 'bandpass');
+    }
+
+    if (playing && index % 2 === 1) {
+      this.playNoiseBurst(0.022, 0.028, 7600, 'highpass');
+    }
+
+    if (index % 2 === 0) {
+      this.playTone([bass[index]], 0.15, pressure * 0.92, 'sine');
+    }
+
+    if (playing || index % 4 === 0) {
+      this.playTone([lead[index] * feverLift], 0.095, pressure, this.feverMs > 0 ? 'square' : 'triangle');
+    }
+
+    if (playing && (index === 3 || index === 11)) {
+      this.playTone([lead[index] * 1.5 * feverLift, lead[index] * 2 * feverLift], 0.09, pressure * 0.46, 'triangle');
     }
 
     this.musicStep += 1;
+  }
+
+  private playKick(volume: number) {
+    if (this.audio == null || this.muted) {
+      return;
+    }
+
+    const now = this.audio.currentTime;
+    const oscillator = this.audio.createOscillator();
+    const gain = this.audio.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(118, now);
+    oscillator.frequency.exponentialRampToValueAtTime(44, now + 0.11);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(volume, now + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+    oscillator.connect(gain);
+    gain.connect(this.masterGain ?? this.audio.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.17);
+  }
+
+  private playNoiseBurst(volume: number, length: number, frequency: number, filterType: BiquadFilterType) {
+    if (this.audio == null || this.muted) {
+      return;
+    }
+
+    const buffer = this.audio.createBuffer(1, Math.max(1, Math.floor(this.audio.sampleRate * length)), this.audio.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i += 1) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    }
+
+    const source = this.audio.createBufferSource();
+    const filter = this.audio.createBiquadFilter();
+    const gain = this.audio.createGain();
+    filter.type = filterType;
+    filter.frequency.value = frequency;
+    filter.Q.value = filterType === 'bandpass' ? 1.8 : 0.8;
+    gain.gain.setValueAtTime(volume, this.audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, this.audio.currentTime + length);
+    source.buffer = buffer;
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain ?? this.audio.destination);
+    source.start();
   }
 
   private playTone(notes: number[], length: number, volume = 0.075, type: OscillatorType = 'triangle') {
