@@ -7,7 +7,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v11';
+const BUILD_VERSION = 'v12';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.25;
@@ -1766,7 +1766,7 @@ class CometRushScene extends Phaser.Scene {
       this.testBgm.muted = this.muted;
     }
     if (this.originalBgmGain != null && this.audio != null) {
-      this.originalBgmGain.gain.setTargetAtTime(this.muted || this.testBgmActive ? 0 : 0.24, this.audio.currentTime, 0.035);
+      this.originalBgmGain.gain.setTargetAtTime(this.muted || this.testBgmActive ? 0 : 0.36, this.audio.currentTime, 0.035);
     }
     if (!this.muted) {
       this.unlockAudio();
@@ -4153,7 +4153,7 @@ class CometRushScene extends Phaser.Scene {
 
     this.audio = new AudioCtor();
     this.masterGain = this.audio.createGain();
-    this.masterGain.gain.setValueAtTime(0.18, this.audio.currentTime);
+    this.masterGain.gain.setValueAtTime(0.28, this.audio.currentTime);
     this.masterGain.connect(this.audio.destination);
     this.startTestBgmIfRequested();
     this.startOriginalBgmLoop();
@@ -4168,7 +4168,7 @@ class CometRushScene extends Phaser.Scene {
       const source = window.location.pathname.endsWith('/play-direct.html') ? './public/ncs-test.mp3' : './ncs-test.mp3';
       this.testBgm = new Audio(source);
       this.testBgm.loop = true;
-      this.testBgm.volume = 0.52;
+      this.testBgm.volume = 0.86;
     }
 
     void this.testBgm.play()
@@ -4193,7 +4193,7 @@ class CometRushScene extends Phaser.Scene {
     const gain = this.audio.createGain();
     source.buffer = this.createOriginalBgmBuffer();
     source.loop = true;
-    gain.gain.setValueAtTime(this.muted ? 0 : 0.24, this.audio.currentTime);
+    gain.gain.setValueAtTime(this.muted ? 0 : 0.36, this.audio.currentTime);
     source.connect(gain);
     gain.connect(this.masterGain);
     source.start();
