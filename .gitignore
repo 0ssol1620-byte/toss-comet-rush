@@ -6,3 +6,4 @@ play-direct.html
 .env.*
 *.log
 *.tsbuildinfo
+public/ncs-test.mp3

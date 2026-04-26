@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -47,6 +47,13 @@ const targets = [
 for (const target of targets) {
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, html);
+}
+
+const testBgm = join(root, 'public', 'ncs-test.mp3');
+if (existsSync(testBgm)) {
+  await Promise.all(
+    desktopCandidates().map((dir) => copyFile(testBgm, join(dir, 'ncs-test.mp3')).catch(() => undefined)),
+  );
 }
 
 console.log(`Exported direct play HTML to ${targets.length} locations.`);

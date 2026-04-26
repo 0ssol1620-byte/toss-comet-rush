@@ -322,6 +322,8 @@ class CometRushScene extends Phaser.Scene {
   private audio?: AudioContext;
   private masterGain?: GainNode;
   private musicLoop?: Phaser.Time.TimerEvent;
+  private testBgm?: HTMLAudioElement;
+  private testBgmActive = false;
   private musicStep = 0;
   private muted = false;
   private onboardingStep = 0;
@@ -1079,13 +1081,13 @@ class CometRushScene extends Phaser.Scene {
     const overlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x02070d, 0.82);
     const card = this.add.rectangle(GAME_WIDTH / 2, 118, 336, 142, 0x071927, 0.98);
     card.setStrokeStyle(1, step >= 4 ? PALETTE.green : PALETTE.aqua, 0.42);
-    const progress = this.add.text(46, 58, step >= 5 ? '완료' : `${step + 1}/5`, {
+    const progress = this.add.text(46, 58, step >= 7 ? '완료' : `${step + 1}/8`, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '13px',
       fontStyle: '900',
       color: '#07131f',
-      backgroundColor: step >= 4 ? '#66ffc2' : '#ffc857',
+      backgroundColor: step >= 7 ? '#66ffc2' : '#ffc857',
       padding: { left: 10, right: 10, top: 5, bottom: 5 },
     });
     progress.setOrigin(0, 0.5);
@@ -1093,19 +1095,21 @@ class CometRushScene extends Phaser.Scene {
     const titleCopy = [
       '금고를 직접 움직여보세요',
       '먹을 것과 피할 것을 먼저 볼게요',
+      '파워업은 시간제로 작동합니다',
       '현금봉투를 눌러 수집하세요',
       '빨간 고지서는 피하세요',
       '가까이 피하면 각성합니다',
-      '업그레이드 카드를 골라보세요',
+      '업그레이드는 레벨이 쌓입니다',
       '준비 완료',
     ][step] ?? '준비 완료';
     const bodyCopy = [
       '아래 금고를 좌우로 드래그하면 이동합니다.',
       '초록/금색 보상은 먹고, 빨간 고지서는 피하세요.',
+      '같은 파워업을 또 먹으면 남은 시간이 누적됩니다.',
       '좋은 보상은 반짝입니다. 먹으면 잔고와 콤보가 오릅니다.',
       '오른쪽 안전 구역을 눌러 충돌을 피하세요.',
       '너무 멀리 피하지 말고 안전선 근처를 눌러보세요.',
-      '런 중 선택은 이번 판의 빌드를 바꿉니다.',
+      '같은 카드를 다시 고르면 레벨이 올라 효과가 강해집니다.',
       '이제 60초 동안 월급을 지켜보세요.',
     ][step] ?? '';
 
@@ -1130,7 +1134,7 @@ class CometRushScene extends Phaser.Scene {
     body.setOrigin(0.5);
     this.fitText(body, 292, 10);
 
-    const skip = this.createButton(GAME_WIDTH / 2, 784, 166, 44, step >= 6 ? '시작하기' : '건너뛰기', step >= 6 ? PALETTE.aqua : PALETTE.gold, () => {
+    const skip = this.createButton(GAME_WIDTH / 2, 784, 166, 44, step >= 7 ? '시작하기' : '건너뛰기', step >= 7 ? PALETTE.aqua : PALETTE.gold, () => {
       this.completeOnboarding();
     });
 
@@ -1141,12 +1145,14 @@ class CometRushScene extends Phaser.Scene {
     } else if (step === 1) {
       this.renderOnboardingLegend(layer);
     } else if (step === 2) {
-      this.renderOnboardingCollect(layer);
+      this.renderOnboardingPowerItems(layer);
     } else if (step === 3) {
-      this.renderOnboardingDodge(layer);
+      this.renderOnboardingCollect(layer);
     } else if (step === 4) {
-      this.renderOnboardingNearMiss(layer);
+      this.renderOnboardingDodge(layer);
     } else if (step === 5) {
+      this.renderOnboardingNearMiss(layer);
+    } else if (step === 6) {
       this.renderOnboardingUpgrade(layer);
     } else {
       this.renderOnboardingReady(layer);
@@ -1269,6 +1275,44 @@ class CometRushScene extends Phaser.Scene {
       wordWrap: { width: 58, useAdvancedWrap: true },
     }).setOrigin(0.5);
     return [tile, sprite, name, body];
+  }
+
+  private renderOnboardingPowerItems(layer: Phaser.GameObjects.Container) {
+    const board = this.add.rectangle(GAME_WIDTH / 2, 532, 330, 420, 0x06131f, 0.72);
+    board.setStrokeStyle(1, PALETTE.violet, 0.36);
+    const title = this.add.text(GAME_WIDTH / 2, 338, '중복 획득 = 지속시간 누적', {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '18px',
+      fontStyle: '900',
+      color: '#cfc4ff',
+    }).setOrigin(0.5);
+    const items = [
+      { key: 'magnetItem', anim: 'salary-magnet', label: '급여자석', desc: '보상 흡입' },
+      { key: 'autopilotItem', anim: 'auto-pilot', label: '오토파일럿', desc: '자동 회피' },
+      { key: 'shieldItem', anim: 'insurance-shield', label: '파산보험', desc: '1회 방어' },
+      { key: 'freezeItem', anim: 'debt-freeze', label: '채무동결', desc: '고지서 감속' },
+      { key: 'droneItem', anim: 'finance-drone', label: '드론', desc: '근접 요격' },
+      { key: 'boosterItem', anim: 'salary-boost', label: '부스터', desc: '돌파 질주' },
+    ];
+    const entries: Phaser.GameObjects.GameObject[] = [board, title];
+    items.forEach((item, index) => {
+      const col = index % 3;
+      const row = Math.floor(index / 3);
+      entries.push(...this.createOnboardingLegendItem(104 + col * 92, 430 + row * 138, item.key, item.anim, item.label, item.desc, index === 1 || index === 2 ? PALETTE.violet : PALETTE.green));
+    });
+    const note = this.add.text(GAME_WIDTH / 2, 680, 'HUD에 남은 초가 표시되고, 다시 먹으면 최대치까지 더해집니다.', {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '12px',
+      fontStyle: '900',
+      color: '#bde6f4',
+      wordWrap: { width: 286, useAdvancedWrap: true },
+    }).setOrigin(0.5);
+    const next = this.createButton(GAME_WIDTH / 2, 730, 222, 50, '알겠어요', PALETTE.aqua, () => {
+      this.advanceOnboarding(180);
+    });
+    layer.add([...entries, note, next]);
   }
 
   private renderOnboardingDodge(layer: Phaser.GameObjects.Container) {
@@ -1712,6 +1756,9 @@ class CometRushScene extends Phaser.Scene {
   private toggleMute() {
     this.muted = !this.muted;
     this.muteHudLabel?.setText(this.muted ? '무음' : '음');
+    if (this.testBgm != null) {
+      this.testBgm.muted = this.muted;
+    }
     if (!this.muted) {
       this.unlockAudio();
       this.playTone([523, 659, 784], 0.045, 0.08, 'triangle');
@@ -2145,7 +2192,7 @@ class CometRushScene extends Phaser.Scene {
       this.showOnboarding(true);
       const step = Number.parseInt(params.get('step') ?? '0', 10);
       if (Number.isFinite(step)) {
-        this.onboardingStep = Phaser.Math.Clamp(step, 0, 6);
+        this.onboardingStep = Phaser.Math.Clamp(step, 0, 7);
         this.renderOnboardingStep();
       }
       return;
@@ -3847,8 +3894,8 @@ class CometRushScene extends Phaser.Scene {
 
   private activatePowerItem(kind: ActorKind, x: number, y: number) {
     if (kind === 'magnetItem') {
-      this.magnetMs = Math.max(this.magnetMs, 6200 + this.upgrades.magnet * 420);
-      this.popText(x, y - 34, '급여자석 6초', '#66ffc2');
+      this.magnetMs = this.stackPowerDuration(this.magnetMs, 6200 + this.upgrades.magnet * 420, 12000);
+      this.popText(x, y - 34, `급여자석 ${(this.magnetMs / 1000).toFixed(1)}초`, '#66ffc2');
       this.playTone([440, 660, 990], 0.045, 0.09, 'sine');
       this.bridge.haptic('success');
     } else if (kind === 'shieldItem') {
@@ -3857,31 +3904,35 @@ class CometRushScene extends Phaser.Scene {
       this.playTone([392, 523, 784], 0.05, 0.08, 'triangle');
       this.bridge.haptic('success');
     } else if (kind === 'autopilotItem') {
-      this.autopilotMs = Math.max(this.autopilotMs, 4400);
-      this.popText(x, y - 34, '오토파일럿', '#cfc4ff');
+      this.autopilotMs = this.stackPowerDuration(this.autopilotMs, 4400, 9000);
+      this.popText(x, y - 34, `오토파일럿 ${(this.autopilotMs / 1000).toFixed(1)}초`, '#cfc4ff');
       this.playTone([330, 494, 659, 988], 0.035, 0.075, 'square');
       this.bridge.haptic('softMedium');
     } else if (kind === 'freezeItem') {
-      this.freezeMs = Math.max(this.freezeMs, 5200);
+      this.freezeMs = this.stackPowerDuration(this.freezeMs, 5200, 11000);
       this.freezeHazards();
-      this.popText(x, y - 34, '채무동결', '#9defff');
+      this.popText(x, y - 34, `채무동결 ${(this.freezeMs / 1000).toFixed(1)}초`, '#9defff');
       this.playTone([784, 523, 392], 0.05, 0.075, 'sine');
       this.bridge.haptic('softMedium');
     } else if (kind === 'droneItem') {
-      this.droneMs = Math.max(this.droneMs, 7200);
-      this.popText(x, y - 34, '재무팀 드론', '#9defff');
+      this.droneMs = this.stackPowerDuration(this.droneMs, 7200, 14000);
+      this.popText(x, y - 34, `재무팀 드론 ${(this.droneMs / 1000).toFixed(1)}초`, '#9defff');
       this.playTone([740, 880, 1175], 0.04, 0.08, 'square');
       this.bridge.haptic('success');
     } else if (kind === 'boosterItem') {
-      this.boosterMs = Math.max(this.boosterMs, 3300);
+      this.boosterMs = this.stackPowerDuration(this.boosterMs, 3300, 7000);
       this.score += 420;
-      this.popText(x, y - 34, '월급 부스터', '#ffc857');
+      this.popText(x, y - 34, `월급 부스터 ${(this.boosterMs / 1000).toFixed(1)}초`, '#ffc857');
       this.playTone([196, 392, 784, 1175], 0.035, 0.09, 'sawtooth');
       this.bridge.haptic('confetti');
     }
 
     this.bridge.log('power_item_collect', { kind, stage: this.currentStage().id, score: this.score }, 'event');
     this.shockwave(x, y, this.actorGlowColor(kind), kind === 'boosterItem' ? 3 : 2);
+  }
+
+  private stackPowerDuration(currentMs: number, addMs: number, capMs: number) {
+    return Math.min(capMs, currentMs + addMs);
   }
 
   private pickUpgradeOptions(count: number) {
@@ -4064,7 +4115,29 @@ class CometRushScene extends Phaser.Scene {
     this.masterGain = this.audio.createGain();
     this.masterGain.gain.setValueAtTime(0.18, this.audio.currentTime);
     this.masterGain.connect(this.audio.destination);
+    this.startTestBgmIfRequested();
     this.startMusicLoop();
+  }
+
+  private startTestBgmIfRequested() {
+    if (!new URLSearchParams(window.location.search).has('ncs')) {
+      return;
+    }
+
+    if (this.testBgm == null) {
+      const source = window.location.pathname.endsWith('/play-direct.html') ? './public/ncs-test.mp3' : './ncs-test.mp3';
+      this.testBgm = new Audio(source);
+      this.testBgm.loop = true;
+      this.testBgm.volume = 0.52;
+    }
+
+    void this.testBgm.play()
+      .then(() => {
+        this.testBgmActive = true;
+      })
+      .catch(() => {
+        this.testBgmActive = false;
+      });
   }
 
   private startMusicLoop() {
@@ -4080,7 +4153,7 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private playMusicStep() {
-    if (this.audio == null || this.masterGain == null || this.muted || this.phase === 'gameover') {
+    if (this.testBgmActive || this.audio == null || this.masterGain == null || this.muted || this.phase === 'gameover') {
       return;
     }
 
