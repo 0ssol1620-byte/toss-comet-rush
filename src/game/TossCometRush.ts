@@ -1257,25 +1257,25 @@ class CometRushScene extends Phaser.Scene {
       { icon: '⚡', label: '아슬', color: PALETTE.gold },
     ];
     const spacing = compact ? 106 : 110;
-    const cardWidth = compact ? 98 : 102;
-    const cardHeight = 50;
+    const cardWidth = compact ? 102 : 108;
+    const cardHeight = 54;
 
     items.forEach((item, index) => {
       const x = (index - 1) * spacing;
       const bg = this.add.rectangle(x, 0, cardWidth, cardHeight, 0x041522, 0.72);
       bg.setStrokeStyle(1, item.color, 0.38);
-      const icon = this.add.text(x, -12, item.icon, {
+      const icon = this.add.text(x, -13, item.icon, {
         align: 'center',
         fontFamily: 'Pretendard, Apple Color Emoji, sans-serif',
-        fontSize: compact ? '16px' : '17px',
+        fontSize: compact ? '17px' : '18px',
         fontStyle: '900',
         color: '#f8fbff',
       });
       icon.setOrigin(0.5);
-      const label = this.add.text(x, 13, item.label, {
+      const label = this.add.text(x, 14, item.label, {
         align: 'center',
         fontFamily: 'Pretendard, sans-serif',
-        fontSize: compact ? '14px' : '15px',
+        fontSize: compact ? '16px' : '17px',
         fontStyle: '900',
         color: '#f8fbff',
         wordWrap: { width: cardWidth - 12, useAdvancedWrap: false },
