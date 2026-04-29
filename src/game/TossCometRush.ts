@@ -2954,7 +2954,7 @@ class CometRushScene extends Phaser.Scene {
         this.burst(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, this.nearChain >= 3 ? 24 : 14);
         this.shockwave(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, 1.15 + Math.min(1.2, this.nearChain * 0.16));
         this.playTone([juice.pitch, Math.min(1320, juice.pitch * 1.26)], 0.026, 0.07 + Math.min(0.045, this.nearChain * 0.006), 'triangle');
-        this.popText(actor.image.x, actor.image.y - 24, this.nearChain >= 2 ? `스쳤다! x${this.nearChain}` : '스쳤다! +각성', this.nearChain >= 3 ? '#ffc857' : '#cfc4ff');
+        this.popText(GAME_WIDTH / 2, PLAYER_Y - 138, this.nearChain >= 2 ? `스쳤다! x${this.nearChain}` : '스쳤다! +각성', this.nearChain >= 3 ? '#ffc857' : '#cfc4ff');
         if (this.nearChain === 3 || this.nearChain === 6) {
           this.bridge.log('near_miss_chain', { chain: this.nearChain, score: this.score }, 'event');
         }
@@ -3033,6 +3033,10 @@ class CometRushScene extends Phaser.Scene {
       this.activatePowerItem(actor.kind, actor.image.x, actor.image.y);
     }
 
+    if (this.combo >= 4 && this.combo % 4 === 0 && actor.kind !== 'boost') {
+      this.popText(GAME_WIDTH / 2, PLAYER_Y - 94, rhythm.label, this.combo >= 24 ? '#fff4d8' : '#9defff');
+    }
+
     if (actor.kind === 'boost') {
       this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 1.8 + this.upgrades.overtime * 0.28 + (this.hasEvolution('thirteenthPay') ? 0.45 : 0));
       this.overdrive = Math.min(100, this.overdrive + 8);
@@ -3056,7 +3060,7 @@ class CometRushScene extends Phaser.Scene {
       this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 1.2);
       this.haptic('softMedium');
       this.bridge.log('combo_milestone', { combo: this.combo, score: this.score }, 'event');
-      this.popText(this.player.x, this.player.y - 74, `COMBO ${this.combo} · +1.2초`, '#ffc857');
+      this.popText(GAME_WIDTH / 2, PLAYER_Y - 110, `COMBO ${this.combo} · +1.2초`, '#ffc857');
       this.tweens.add({
         targets: [this.timerText, this.scoreText],
         scale: 1.09,
@@ -3421,16 +3425,25 @@ class CometRushScene extends Phaser.Scene {
       fontSize: '16px',
       fontStyle: '900',
       color,
+      align: 'center',
       shadow: { color: '#001622', blur: 8, fill: true },
     });
-    text.setPosition(x, y);
+    const centeredX = Phaser.Math.Clamp(x, 46, GAME_WIDTH - 46);
     text.setText(label);
-    text.setColor(color);
+    text.setStyle({
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '16px',
+      fontStyle: '900',
+      color,
+      align: 'center',
+      shadow: { color: '#001622', blur: 8, fill: true },
+    });
+    text.setOrigin(0.5, 0.5);
+    text.setPosition(centeredX, y);
     text.setAlpha(1);
     text.setVisible(true);
     text.setActive(true);
     text.setScale(1);
-    text.setOrigin(0.5);
     text.setDepth(this.growthLayer != null || this.upgradeLayer != null || this.pauseLayer != null ? 60 : 18);
     this.tweens.add({
       targets: text,
