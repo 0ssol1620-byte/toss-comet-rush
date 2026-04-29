@@ -87,9 +87,12 @@ function vibrateFallback(type: HapticType) {
     tap: 8,
     tickWeak: 6,
     tickMedium: 12,
+    softMedium: [8, 18, 10],
+    basicWeak: 9,
     basicMedium: 18,
     success: [12, 24, 18],
     error: [28, 24, 28],
+    wiggle: [10, 18, 10, 18, 10],
     confetti: [8, 16, 8, 16, 22],
   };
 

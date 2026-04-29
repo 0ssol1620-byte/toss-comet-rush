@@ -4,11 +4,13 @@ import {
   DAILY_MISSION_REWARD,
   achievementProgress,
   buildRetryHook,
+  collectionProgress,
   evolutionHint,
   firstRunAssistProfile,
   missionProgress,
   missionRewardState,
   rareEventForRun,
+  resultShareCopy,
   resolvePerformanceProfile,
   streakLoginReward,
   updateStreakState,
@@ -301,6 +303,10 @@ const SKINS = [
   { name: '상여금 금고', tint: 0xfff0b6, glow: 0xffc857, unlock: 12000 },
   { name: '절약왕 금고', tint: 0xb8ffe6, glow: 0x66ffc2, unlock: 24000 },
   { name: '블랙카드 금고', tint: 0xd7d2ff, glow: 0x8c72ff, unlock: 42000 },
+  { name: '월급루팡 금고', tint: 0xd9fff6, glow: 0x44d7a8, unlock: 70000 },
+  { name: '칼퇴 금고', tint: 0xfff8d4, glow: 0xff8f3d, unlock: 110000 },
+  { name: '부장님 카드 금고', tint: 0xffd7df, glow: 0xff4f64, unlock: 180000 },
+  { name: '연말정산 금고', tint: 0xd4ebff, glow: 0x9defff, unlock: 280000 },
 ];
 
 const PALETTE = {
@@ -1169,12 +1175,15 @@ class CometRushScene extends Phaser.Scene {
     const skin = this.createButton(GAME_WIDTH / 2, 542, 250, 48, '스킨 변경', PALETTE.violet, () => {
       this.cycleSkin();
     });
-    const close = this.createButton(GAME_WIDTH / 2, 612, 210, 46, '닫기', PALETTE.aqua, () => {
+    const collection = this.createButton(GAME_WIDTH / 2, 600, 250, 46, '도감 / 업적', PALETTE.gold, () => {
+      this.showCollectionPanel();
+    });
+    const close = this.createButton(GAME_WIDTH / 2, 658, 210, 44, '닫기', PALETTE.aqua, () => {
       this.growthLayer?.destroy();
       this.growthLayer = undefined;
     });
 
-    const hint = this.add.text(GAME_WIDTH / 2, 668, '성장은 한 판 보상과 최고잔고 목표를 이어줍니다', {
+    const hint = this.add.text(GAME_WIDTH / 2, 714, '스킨·업적·스테이지 도감을 채우면 장기 목표가 열립니다', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '12px',
@@ -1183,7 +1192,7 @@ class CometRushScene extends Phaser.Scene {
     });
     hint.setOrigin(0.5);
 
-    layer.add([overlay, card, glow, ship, title, credits, meta, next, progressBack, progressFill, upgrade, skin, close, hint]);
+    layer.add([overlay, card, glow, ship, title, credits, meta, next, progressBack, progressFill, upgrade, skin, collection, close, hint]);
     layer.setDepth(48);
     layer.setAlpha(0);
     this.growthLayer = layer;
@@ -1196,6 +1205,62 @@ class CometRushScene extends Phaser.Scene {
     });
 
     this.bridge.log('screen_growth', { credits: this.save.credits }, 'screen');
+  }
+
+  private showCollectionPanel() {
+    const unlockedSkins = SKINS.filter((skin) => this.save.best >= skin.unlock).length;
+    const achievements = Object.values(this.save.achievements).filter(Boolean).length;
+    const stages = this.save.unlockedStage + 1;
+    const evolutions = EVOLUTIONS.filter((evolution) => this.hasEvolution(evolution.id)).length;
+    const collection = collectionProgress({ unlockedSkins, achievements, stages, evolutions });
+    const weekly = weeklyMissionProgress(this.save.weekly);
+    const layer = this.add.container(0, 0);
+    const overlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x02070d, 0.76);
+    const card = this.add.rectangle(GAME_WIDTH / 2, 428, 336, 596, 0x06131f, 0.98);
+    card.setStrokeStyle(1, PALETTE.gold, 0.42);
+    const title = this.add.text(GAME_WIDTH / 2, 164, '월급 방어 도감', {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '27px',
+      fontStyle: '900',
+      color: '#f8fbff',
+      shadow: { color: '#ffc857', blur: 16, fill: true },
+    });
+    title.setOrigin(0.5);
+    const summary = this.add.text(GAME_WIDTH / 2, 212, collection.summary, {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '14px',
+      fontStyle: '900',
+      color: '#ffc857',
+      wordWrap: { width: 284, useAdvancedWrap: true },
+    });
+    summary.setOrigin(0.5);
+    const rows = [
+      `🏦 스킨 ${unlockedSkins}/${SKINS.length}: ${this.currentSkin().name}`,
+      `🏆 업적 ${achievements}/5: 첫 5만·아슬회피·콤보·클리어·무피격`,
+      `🪐 스테이지 ${stages}/${STAGES.length}: ${this.currentStage().name}`,
+      `🧬 EVO ${evolutions}/${EVOLUTIONS.length}: ${EVOLUTIONS.map((evolution) => evolution.name).join(' / ')}`,
+      `📅 주간미션 ${weekly.completed}/${weekly.total}: ${weekly.goals.map((goal) => `${goal.done ? '✓' : '·'}${goal.label}`).join('  ')}`,
+      `🔥 연속접속 ${this.save.streak.current}일 · 최고 ${this.save.streak.best}일`,
+    ];
+    const body = this.add.text(GAME_WIDTH / 2, 380, rows.join('\n\n'), {
+      align: 'left',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '12px',
+      color: '#dff8ff',
+      lineSpacing: 5,
+      wordWrap: { width: 286, useAdvancedWrap: true },
+    });
+    body.setOrigin(0.5);
+    const close = this.createButton(GAME_WIDTH / 2, 680, 210, 46, '성장으로 돌아가기', PALETTE.aqua, () => {
+      layer.destroy();
+    });
+    layer.add([overlay, card, title, summary, body, close]);
+    layer.setDepth(62);
+    layer.setAlpha(0);
+    this.tweens.add({ targets: layer, alpha: 1, duration: 180, ease: 'Cubic.easeOut' });
+    this.bridge.log('screen_collection', { percent: collection.percent, achievements }, 'screen');
   }
 
   private showOnboarding(replay: boolean) {
@@ -2351,7 +2416,11 @@ class CometRushScene extends Phaser.Scene {
       void this.tryDoubleRewardAd();
     });
 
-    const board = this.createButton(GAME_WIDTH / 2, 725, 228, 44, '리더보드 확인', PALETTE.gold, () => {
+    const share = this.createButton(124, 725, 138, 44, '결과 공유', PALETTE.green, () => {
+      void this.shareResultCard();
+    });
+
+    const board = this.createButton(266, 725, 138, 44, '랭킹 확인', PALETTE.gold, () => {
       this.bridge.haptic('tap');
       void this.bridge.openLeaderboard();
     });
@@ -2362,7 +2431,7 @@ class CometRushScene extends Phaser.Scene {
       this.showMenu();
     });
 
-    layer.add([overlay, card, halo, title, score, detail, rank, percentile, credit, mission, retry, claim, doubleReward, board, menu]);
+    layer.add([overlay, card, halo, title, score, detail, rank, percentile, credit, mission, retry, claim, doubleReward, share, board, menu]);
     layer.setDepth(40);
     layer.setAlpha(0);
     this.gameOverLayer = layer;
@@ -4080,6 +4149,21 @@ class CometRushScene extends Phaser.Scene {
       localStorage.setItem(SAVE_KEY, JSON.stringify(this.save));
     } catch {
       // Storage is optional in file previews and some embedded WebViews.
+    }
+  }
+
+  private async shareResultCard() {
+    const copy = resultShareCopy({ score: this.score, rank: this.rankLabel(), nearMiss: this.nearMiss, feverCount: this.feverCount });
+    const url = 'https://0ssol1620-byte.github.io/toss-comet-rush/';
+    this.bridge.haptic('success');
+    this.bridge.log('share_click', { score: this.score, rank: this.rankLabel(), nearMiss: this.nearMiss }, 'click');
+    if (navigator.share != null) {
+      await navigator.share({ title: '월급 방어전', text: copy, url }).catch(() => undefined);
+    } else if (navigator.clipboard != null) {
+      await navigator.clipboard.writeText(`${copy}\n${url}`).catch(() => undefined);
+      this.popText(GAME_WIDTH / 2, 706, '공유 문구 복사 완료', '#66ffc2');
+    } else {
+      this.popText(GAME_WIDTH / 2, 706, '공유 문구 준비 완료', '#66ffc2');
     }
   }
 

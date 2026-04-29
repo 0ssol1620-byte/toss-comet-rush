@@ -233,6 +233,22 @@ export function weeklyMissionProgress(week: WeeklyStats) {
   return { goals, completed, total: goals.length, complete: completed === goals.length, reward: 900 };
 }
 
+export function collectionProgress(input: { unlockedSkins: number; achievements: number; stages: number; evolutions: number }) {
+  const total = 8 + 5 + 6;
+  const completed = Math.max(0, input.unlockedSkins) + Math.max(0, input.achievements) + Math.max(0, input.stages) + Math.max(0, input.evolutions);
+  const percent = Math.min(100, Math.round((completed / total) * 100));
+  return {
+    completed,
+    total,
+    percent,
+    summary: `수집률 ${percent}% · 스킨 ${input.unlockedSkins}/8 · 업적 ${input.achievements}/5 · 스테이지 ${input.stages}/6`,
+  };
+}
+
+export function resultShareCopy(input: { score: number; rank: string; nearMiss: number; feverCount: number }) {
+  return `나는 오늘 월급 ${formatKoreanNumber(input.score)}원을 방어했다. RANK ${input.rank} · 아슬회피 ${input.nearMiss}회 · 월급각성 ${input.feverCount}회. 너도 월급 지켜봐라.`;
+}
+
 export function rareEventForRun(input: { plays: number; elapsedSeconds: number; score: number; feverCount: number }): RareEventId {
   if (input.elapsedSeconds >= 16 && input.elapsedSeconds <= 24 && input.score >= 60000 && input.plays % 3 === 0) {
     return 'goldenSalary';

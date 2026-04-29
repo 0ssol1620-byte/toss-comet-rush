@@ -22,6 +22,8 @@ const {
   evolutionHint,
   firstRunAssistProfile,
   resolvePerformanceProfile,
+  resultShareCopy,
+  collectionProgress,
   streakLoginReward,
   updateStreakState,
   achievementProgress,
@@ -99,5 +101,11 @@ assert.equal(rareEventForRun({ plays: 2, elapsedSeconds: 50, score: 30000, fever
 assert.equal(streakLoginReward({ lastLoginDate: '2026-04-29', current: 1, best: 1 }), 100);
 assert.equal(streakLoginReward({ lastLoginDate: '2026-04-29', current: 7, best: 7 }), 500);
 assert.equal(streakLoginReward({ lastLoginDate: '2026-04-29', current: 7, best: 7, rewardClaimedDate: '2026-04-29' }), 0);
+
+const collection = collectionProgress({ unlockedSkins: 3, achievements: 4, stages: 2, evolutions: 1 });
+assert.equal(collection.completed, 10);
+assert.equal(collection.total, 19);
+assert.match(collection.summary, /수집률/);
+assert.match(resultShareCopy({ score: 284500, rank: 'SS', nearMiss: 19, feverCount: 4 }), /월급 284,500원/);
 
 console.log('progression tests passed');
