@@ -410,6 +410,7 @@ class CometRushScene extends Phaser.Scene {
   private timerText!: Phaser.GameObjects.Text;
   private comboText!: Phaser.GameObjects.Text;
   private centerFeedbackText!: Phaser.GameObjects.Text;
+  private centerComboLiveText!: Phaser.GameObjects.Text;
   private missionText!: Phaser.GameObjects.Text;
   private overdriveBack!: Phaser.GameObjects.Rectangle;
   private overdriveFill!: Phaser.GameObjects.Rectangle;
@@ -912,6 +913,21 @@ class CometRushScene extends Phaser.Scene {
     this.centerFeedbackText.setDepth(80);
     this.centerFeedbackText.setAlpha(0);
     this.hudObjects.push(this.centerFeedbackText);
+
+    this.centerComboLiveText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 122, '', {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '30px',
+      fontStyle: '900',
+      color: '#66ffc2',
+      stroke: '#050816',
+      strokeThickness: 10,
+      shadow: { offsetX: 0, offsetY: 5, color: '#000000', blur: 14, fill: true },
+    });
+    this.centerComboLiveText.setOrigin(0.5, 0.5);
+    this.centerComboLiveText.setDepth(89);
+    this.centerComboLiveText.setAlpha(0);
+    this.hudObjects.push(this.centerComboLiveText);
 
     this.missionText = this.add.text(GAME_WIDTH / 2, 80, '', {
       align: 'center',
@@ -3339,6 +3355,20 @@ class CometRushScene extends Phaser.Scene {
     this.overdriveFill.width = (212 * (this.feverMs > 0 ? 1 : this.overdrive)) / 100;
     this.overdriveFill.setFillStyle(this.feverMs > 0 ? PALETTE.gold : this.overdrive > 70 ? PALETTE.green : PALETTE.aqua, 0.96);
     this.dangerOverlay.setAlpha(this.hp <= 1 && this.phase === 'playing' ? 0.08 + Math.sin(now * 0.012) * 0.035 : 0);
+
+    if (this.phase === 'playing' && this.combo > 0 && this.comboGraceMs > 0) {
+      const liveLabel = this.combo >= 24 ? `FEVER ${this.combo} COMBO!!` : this.combo >= 8 ? `${this.combo} COMBO!` : `${this.combo} COMBO`;
+      this.centerComboLiveText.setText(liveLabel);
+      this.centerComboLiveText.setVisible(true);
+      this.centerComboLiveText.setActive(true);
+      this.centerComboLiveText.setPosition(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 122);
+      this.centerComboLiveText.setDepth(89);
+      this.centerComboLiveText.setAlpha(0.95);
+      this.centerComboLiveText.setScale(1 + Math.min(0.22, this.combo * 0.006));
+      this.centerComboLiveText.setColor(this.combo >= 24 ? '#fff4d8' : this.combo >= 8 ? '#9defff' : '#66ffc2');
+    } else {
+      this.centerComboLiveText.setAlpha(0);
+    }
   }
 
   private updateStars(delta: number) {
