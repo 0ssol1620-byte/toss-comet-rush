@@ -34,7 +34,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v13-retention';
+const BUILD_VERSION = 'v14-combo-nomute';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
@@ -529,6 +529,7 @@ class CometRushScene extends Phaser.Scene {
     this.updateStars(frameDelta);
 
     if (this.phase !== 'playing') {
+      this.updateCenterComboBadge();
       return;
     }
 
@@ -552,6 +553,7 @@ class CometRushScene extends Phaser.Scene {
     this.updateActors(frameDelta);
     this.maybeAnnounceAlertTier();
     this.updateCombo(frameDelta);
+    this.updateCenterComboBadge();
     this.maybeTriggerRareEvent();
     this.updateHud();
 
@@ -2173,7 +2175,6 @@ class CometRushScene extends Phaser.Scene {
     this.save.audio.sfxEnabled = this.sfxEnabled;
     this.save.audio.hapticEnabled = this.hapticEnabled;
     this.persistSave();
-    this.muteHudLabel?.setText(this.muted ? '무음' : '음');
     if (this.testBgm != null) {
       this.testBgm.muted = this.muted;
     }
@@ -3306,12 +3307,14 @@ class CometRushScene extends Phaser.Scene {
     ].join('|');
 
     if (!force && snapshot === this.hudSnapshot && now - this.hudLastUpdateMs < 120) {
+      this.updateCenterComboBadge();
       this.dangerOverlay.setAlpha(this.hp <= 1 && this.phase === 'playing' ? 0.08 + Math.sin(now * 0.012) * 0.035 : 0);
       return;
     }
 
     this.hudSnapshot = snapshot;
     this.hudLastUpdateMs = now;
+    this.updateCenterComboBadge();
     this.scoreText.setFontSize(25);
     this.scoreText.setText(this.score.toLocaleString('ko-KR'));
     this.fitText(this.scoreText, 132, 16);
@@ -3351,6 +3354,12 @@ class CometRushScene extends Phaser.Scene {
     this.overdriveFill.width = (212 * (this.feverMs > 0 ? 1 : this.overdrive)) / 100;
     this.overdriveFill.setFillStyle(this.feverMs > 0 ? PALETTE.gold : this.overdrive > 70 ? PALETTE.green : PALETTE.aqua, 0.96);
     this.dangerOverlay.setAlpha(this.hp <= 1 && this.phase === 'playing' ? 0.08 + Math.sin(now * 0.012) * 0.035 : 0);
+  }
+
+  private updateCenterComboBadge() {
+    if (!this.centerComboLiveText?.active) {
+      return;
+    }
 
     if (this.phase === 'playing' && this.combo > 0) {
       const liveLabel = this.combo >= 24 ? `FEVER ${this.combo} COMBO!!` : this.combo >= 8 ? `${this.combo} COMBO!` : `${this.combo} COMBO`;
@@ -3365,6 +3374,7 @@ class CometRushScene extends Phaser.Scene {
       this.centerComboLiveText.setColor(this.combo >= 24 ? '#fff4d8' : this.combo >= 8 ? '#9defff' : '#66ffc2');
     } else {
       this.centerComboLiveText.setAlpha(0);
+      this.centerComboLiveText.setVisible(false);
     }
   }
 
