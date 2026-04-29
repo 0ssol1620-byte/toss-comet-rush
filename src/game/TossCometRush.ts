@@ -1254,7 +1254,7 @@ class CometRushScene extends Phaser.Scene {
     const items = [
       { icon: '💵', label: '현금', color: PALETTE.green },
       { icon: '💳', label: '회피', color: PALETTE.red },
-      { icon: '⚡', label: '스침', color: PALETTE.gold },
+      { icon: '⚡', label: '아슬', color: PALETTE.gold },
     ];
     const spacing = compact ? 106 : 110;
     const cardWidth = compact ? 98 : 102;

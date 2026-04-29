@@ -193,7 +193,7 @@ assert(!source.includes('FEVER ${capped} COMBO!!'), 'old duplicated fever combo 
 assert(!source.includes('12 COMBO!'), 'old exclamation combo label remains');
 assert(source.includes("label: '현금'"), 'menu legend should use short labels');
 assert(source.includes("label: '회피'"), 'menu legend should use short labels');
-assert(source.includes("label: '스침'"), 'menu legend should use short labels');
+assert(source.includes("label: '아슬'"), 'menu legend should use short labels');
 assert(source.includes('legendY: 356'), 'normal menu layout should reserve compact vertical space for legend cards');
 assert(source.includes('spawnOddsProfile'), 'spawn odds hardening helper should be wired');
 assert(source.includes('lastComboPulse'), 'center combo badge should have pulse animation state');
