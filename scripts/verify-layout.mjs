@@ -167,9 +167,9 @@ assert(source.includes("this.showUpgradeChoice"), 'run upgrade choice is not imp
 assert(source.includes("meta_upgrade_buy"), 'meta progression analytics are not implemented');
 assert(source.includes("'rent' | 'tax' | 'sub'"), 'expanded financial hazard types are not implemented');
 assert(source.includes("BUILD_VERSION = 'v13-retention'"), 'source build stamp is not v13-retention');
-assert(source.includes('MAX_FRAME_DELTA = 50'), 'frame delta clamp is not implemented');
+assert(source.includes('MAX_FRAME_DELTA = 42'), 'frame delta clamp is not implemented');
 assert(source.includes('MAX_ACTORS = 38'), 'active actor cap is not implemented');
-assert(source.includes('MAX_DIFFICULTY = 4.15'), 'difficulty cap is not implemented');
+assert(source.includes('MAX_DIFFICULTY = 4.85'), 'difficulty cap is not implemented');
 assert(source.includes('createOriginalBgmBuffer'), 'pre-rendered original BGM buffer is not implemented');
 assert(source.includes('showGrowthPanel'), 'growth management panel is not implemented');
 assert(source.includes('fitText'), 'text fitting helper is not implemented');

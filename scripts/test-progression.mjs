@@ -29,6 +29,15 @@ const {
   achievementProgress,
   weeklyMissionProgress,
   rareEventForRun,
+  stageAlertTier,
+  stageDifficulty,
+  stageSpeedMultiplier,
+  shouldAutoDowngradeQuality,
+  nextRuntimeQuality,
+  sfxThrottleAllows,
+  actorJuiceProfile,
+  nearMissJuiceProfile,
+  comboRhythmProfile,
 } = progression;
 
 assert.equal(
@@ -104,8 +113,34 @@ assert.equal(streakLoginReward({ lastLoginDate: '2026-04-29', current: 7, best: 
 
 const collection = collectionProgress({ unlockedSkins: 3, achievements: 4, stages: 2, evolutions: 1 });
 assert.equal(collection.completed, 10);
-assert.equal(collection.total, 19);
-assert.match(collection.summary, /수집률/);
+assert.equal(collection.total, 22);
+assert.match(collection.summary, /EVO 1\/3/);
 assert.match(resultShareCopy({ score: 284500, rank: 'SS', nearMiss: 19, feverCount: 4 }), /월급 284,500원/);
+
+assert.equal(stageAlertTier({ baseAlertTier: 0 }, 0, 50000, 9), 0);
+assert.equal(stageAlertTier({ baseAlertTier: 1 }, 0, 50000, 9), 1);
+assert.equal(stageAlertTier({ baseAlertTier: 2 }, 100000, 50000, 9), 4);
+assert.ok(stageDifficulty({ id: 1, baseDifficulty: 0, speedBonus: 0 }, 0, 0, 60, 4.85) < 1.05);
+assert.ok(stageDifficulty({ id: 2, baseDifficulty: 0.45, speedBonus: 0.12 }, 0, 1, 60, 4.85) >= 1.7);
+assert.ok(stageDifficulty({ id: 4, baseDifficulty: 1.05, speedBonus: 0.26 }, 55, 4, 5, 4.85) > 4.2);
+assert.equal(stageSpeedMultiplier({ speedBonus: 0.12, minStartSpeedMultiplier: 1.18 }, 0, 2.45), 1.18);
+assert.ok(stageSpeedMultiplier({ speedBonus: 0.44, minStartSpeedMultiplier: 1.68 }, 5, 2.45) >= 2);
+assert.equal(shouldAutoDowngradeQuality({ saveQuality: 'auto', lowFpsSeconds: 4, quality: 'medium' }), true);
+assert.equal(shouldAutoDowngradeQuality({ saveQuality: 'high', lowFpsSeconds: 9, quality: 'high' }), false);
+assert.equal(nextRuntimeQuality('high'), 'medium');
+assert.equal(nextRuntimeQuality('medium'), 'low');
+assert.equal(nextRuntimeQuality('low'), 'low');
+assert.deepEqual(sfxThrottleAllows({}, 'collect', 1000, 38), { allowed: true, last: { collect: 1000 } });
+assert.equal(sfxThrottleAllows({ collect: 1000 }, 'collect', 1020, 38).allowed, false);
+assert.equal(sfxThrottleAllows({ collect: 1000 }, 'collect', 1040, 38).allowed, true);
+
+assert.deepEqual(actorJuiceProfile('hazard', 4, 0), { scale: 1.12, laneWobble: 0, aura: 1 });
+assert.ok(actorJuiceProfile('rent', 5, 2).scale > actorJuiceProfile('sub', 5, 2).scale);
+assert.ok(actorJuiceProfile('coin', 2, 3).scale > actorJuiceProfile('coin', 2, 0).scale);
+assert.deepEqual(nearMissJuiceProfile(1), { label: '스침!', scoreBonus: 260, shake: 0.004, pitch: 740, freezeMs: 18 });
+assert.deepEqual(nearMissJuiceProfile(6), { label: '아슬회피 x6', scoreBonus: 640, shake: 0.009, pitch: 1040, freezeMs: 26 });
+assert.deepEqual(comboRhythmProfile(1), { multiplier: 1, beat: 1, pitch: 520, label: '+1 COMBO' });
+assert.deepEqual(comboRhythmProfile(12), { multiplier: 1.6, beat: 4, pitch: 820, label: '12 COMBO!' });
+assert.deepEqual(comboRhythmProfile(30), { multiplier: 2.2, beat: 8, pitch: 1180, label: 'FEVER 30 COMBO!!' });
 
 console.log('progression tests passed');

@@ -233,15 +233,115 @@ export function weeklyMissionProgress(week: WeeklyStats) {
   return { goals, completed, total: goals.length, complete: completed === goals.length, reward: 900 };
 }
 
+export type StageBalanceInput = {
+  id: number;
+  baseDifficulty: number;
+  baseAlertTier?: number;
+  speedBonus: number;
+  minStartSpeedMultiplier?: number;
+};
+
+export function stageAlertTier(stage: { baseAlertTier?: number; id?: number }, score: number, tierSize: number, maxTier: number) {
+  const base = Math.max(0, stage.baseAlertTier ?? Math.max(0, (stage.id ?? 1) - 1));
+  const scoreTier = Math.max(0, Math.floor(score / tierSize));
+  return Math.min(maxTier, base + scoreTier);
+}
+
+export function stageDifficulty(stage: StageBalanceInput, elapsedSeconds: number, alertTier: number, timeLeft: number, maxDifficulty: number) {
+  const timePressure = elapsedSeconds / 30;
+  const alertPressure = alertTier * 0.17;
+  const stagePressure = stage.baseDifficulty + stage.speedBonus * 1.05;
+  const clutchPressure = timeLeft <= 10 ? 0.22 : 0;
+  const stageRampPressure = Math.min(0.35, (elapsedSeconds / 60) * Math.max(0, stage.id - 1) * 0.08);
+  return Math.min(maxDifficulty, Math.max(1, 1 + timePressure + alertPressure + stagePressure + clutchPressure + stageRampPressure));
+}
+
+export function stageSpeedMultiplier(stage: { speedBonus: number; minStartSpeedMultiplier?: number }, alertTier: number, maxMultiplier: number) {
+  const raw = 1 + alertTier * 0.115 + stage.speedBonus;
+  const minimum = stage.minStartSpeedMultiplier ?? 1;
+  return Math.min(maxMultiplier, Math.max(minimum, raw));
+}
+
+export function shouldAutoDowngradeQuality(input: { saveQuality: VisualQuality; lowFpsSeconds: number; quality: Exclude<VisualQuality, 'auto'> }) {
+  return input.saveQuality === 'auto' && input.lowFpsSeconds >= 4 && input.quality !== 'low';
+}
+
+export function nextRuntimeQuality(quality: Exclude<VisualQuality, 'auto'>): Exclude<VisualQuality, 'auto'> {
+  if (quality === 'high') return 'medium';
+  if (quality === 'medium') return 'low';
+  return 'low';
+}
+
+export function sfxThrottleAllows(last: Record<string, number>, key: string, nowMs: number, minGapMs: number) {
+  const previous = last[key] ?? 0;
+  if (nowMs - previous < minGapMs) {
+    return { allowed: false, last };
+  }
+  return { allowed: true, last: { ...last, [key]: nowMs } };
+}
+
+export type ActorJuiceKind = 'shard' | 'hazard' | 'rent' | 'tax' | 'sub' | 'pulse' | 'coin' | 'boost' | 'magnetItem' | 'shieldItem' | 'autopilotItem' | 'freezeItem' | 'droneItem' | 'boosterItem';
+
+export function actorJuiceProfile(kind: ActorJuiceKind, stageId: number, spawnIndex: number) {
+  const baseScale: Record<ActorJuiceKind, number> = {
+    shard: 0.98,
+    hazard: 1.12,
+    rent: 1.34,
+    tax: 1.16,
+    sub: 0.92,
+    pulse: 1.06,
+    coin: 0.86,
+    boost: 1,
+    magnetItem: 1.08,
+    shieldItem: 1.1,
+    autopilotItem: 1.08,
+    freezeItem: 1.08,
+    droneItem: 1.05,
+    boosterItem: 1.08,
+  };
+  const variant = kind === 'hazard' && spawnIndex === 0 ? 0 : ((spawnIndex % 5) - 2) * 0.045;
+  const stageBoost = kind === 'hazard' && spawnIndex === 0 ? 0 : kind === 'coin' || kind === 'shard' ? Math.min(0.12, stageId * 0.018) : Math.min(0.16, stageId * 0.012);
+  const scale = Math.round((baseScale[kind] + variant + stageBoost) * 100) / 100;
+  return {
+    scale,
+    laneWobble: kind === 'sub' || kind === 'hazard' ? (spawnIndex % 3) * 8 : 0,
+    aura: kind === 'rent' || kind === 'tax' ? 1.16 : kind === 'pulse' || kind === 'coin' ? 1.08 : 1,
+  };
+}
+
+export function nearMissJuiceProfile(chain: number) {
+  const capped = Math.min(8, Math.max(1, chain));
+  return {
+    label: capped <= 1 ? '스침!' : `아슬회피 x${capped}`,
+    scoreBonus: 260 + (capped - 1) * 76,
+    shake: Math.round((0.004 + Math.min(0.005, (capped - 1) * 0.001)) * 1000) / 1000,
+    pitch: Math.min(1120, 680 + capped * 60),
+    freezeMs: capped === 1 ? 18 : Math.min(30, 17 + Math.round(capped * 1.5)),
+  };
+}
+
+export function comboRhythmProfile(combo: number) {
+  const capped = Math.max(1, combo);
+  const beat = capped >= 24 ? 8 : capped >= 8 ? 4 : capped >= 4 ? 2 : 1;
+  const multiplier = capped >= 24 ? 2.2 : capped >= 12 ? 1.6 : capped >= 6 ? 1.3 : 1;
+  const pitch = Math.min(1180, 500 + capped * 26.66);
+  return {
+    multiplier,
+    beat,
+    pitch: Math.round(pitch / 20) * 20,
+    label: capped >= 24 ? `FEVER ${capped} COMBO!!` : capped >= 8 ? `${capped} COMBO!` : `+${capped} COMBO`,
+  };
+}
+
 export function collectionProgress(input: { unlockedSkins: number; achievements: number; stages: number; evolutions: number }) {
-  const total = 8 + 5 + 6;
+  const total = 8 + 5 + 6 + 3;
   const completed = Math.max(0, input.unlockedSkins) + Math.max(0, input.achievements) + Math.max(0, input.stages) + Math.max(0, input.evolutions);
   const percent = Math.min(100, Math.round((completed / total) * 100));
   return {
     completed,
     total,
     percent,
-    summary: `수집률 ${percent}% · 스킨 ${input.unlockedSkins}/8 · 업적 ${input.achievements}/5 · 스테이지 ${input.stages}/6`,
+    summary: `수집률 ${percent}% · 스킨 ${input.unlockedSkins}/8 · 업적 ${input.achievements}/5 · 스테이지 ${input.stages}/6 · EVO ${input.evolutions}/3`,
   };
 }
 

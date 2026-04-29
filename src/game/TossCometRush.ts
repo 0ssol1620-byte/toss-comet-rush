@@ -1,17 +1,26 @@
 import * as Phaser from 'phaser';
-import type { TossBridge } from '../lib/tossBridge';
+import type { HapticType, TossBridge } from '../lib/tossBridge';
 import {
   DAILY_MISSION_REWARD,
   achievementProgress,
+  actorJuiceProfile,
   buildRetryHook,
   collectionProgress,
+  comboRhythmProfile,
   evolutionHint,
   firstRunAssistProfile,
   missionProgress,
   missionRewardState,
+  nextRuntimeQuality,
   rareEventForRun,
   resultShareCopy,
+  nearMissJuiceProfile,
   resolvePerformanceProfile,
+  sfxThrottleAllows,
+  shouldAutoDowngradeQuality,
+  stageAlertTier,
+  stageDifficulty,
+  stageSpeedMultiplier,
   streakLoginReward,
   updateStreakState,
   weeklyMissionProgress,
@@ -28,11 +37,11 @@ const SAVE_KEY = 'salary-defense-save-v1';
 const BUILD_VERSION = 'v13-retention';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
-const MAX_ALERT_SPEED_MULTIPLIER = 2.25;
-const MAX_DIFFICULTY = 4.15;
-const MAX_ACTOR_SPEED = 820;
+const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
+const MAX_DIFFICULTY = 4.85;
+const MAX_ACTOR_SPEED = 900;
 const MAX_ACTORS = 38;
-const MAX_FRAME_DELTA = 50;
+const MAX_FRAME_DELTA = 42;
 const MASTER_VOLUME = 0.34;
 const ORIGINAL_BGM_VOLUME = 0.56;
 const ORIGINAL_BGM_RESUME_VOLUME = 0.5;
@@ -86,8 +95,10 @@ type Actor = {
   speed: number;
   value: number;
   wobble: number;
-  baseScale: number;
   nearMissed?: boolean;
+  juiceScale: number;
+  juiceAura: number;
+  laneWobble: number;
 };
 
 type SaveState = {
@@ -144,6 +155,10 @@ type StageDefinition = {
   name: string;
   subtitle: string;
   targetScore: number;
+  baseDifficulty: number;
+  baseAlertTier: number;
+  carryoverRatio: number;
+  minStartSpeedMultiplier: number;
   speedBonus: number;
   spawnBonus: number;
   hazardBonus: number;
@@ -164,6 +179,10 @@ const STAGES: StageDefinition[] = [
     name: '월급날 골목',
     subtitle: '수집과 가까이 회피를 익히는 첫 구간',
     targetScore: 50000,
+    baseDifficulty: 0,
+    baseAlertTier: 0,
+    carryoverRatio: 0,
+    minStartSpeedMultiplier: 1,
     speedBonus: 0,
     spawnBonus: 0,
     hazardBonus: 0,
@@ -175,10 +194,14 @@ const STAGES: StageDefinition[] = [
     name: '카드값 터널',
     subtitle: '카드값이 빨라지고 5만원 경보가 더 자주 압박합니다',
     targetScore: 100000,
-    speedBonus: 0.08,
-    spawnBonus: 0.06,
-    hazardBonus: 0.035,
-    rewardBonus: 0.06,
+    baseDifficulty: 0.45,
+    baseAlertTier: 1,
+    carryoverRatio: 0.55,
+    minStartSpeedMultiplier: 1.18,
+    speedBonus: 0.12,
+    spawnBonus: 0.12,
+    hazardBonus: 0.055,
+    rewardBonus: 0.08,
     hazardWeights: { hazard: 1.45, rent: 0.55, tax: 0.55, sub: 0.25 },
   },
   {
@@ -186,10 +209,14 @@ const STAGES: StageDefinition[] = [
     name: '월세 고가도로',
     subtitle: '월세 운석의 흔들림이 커지고 보상 배율도 상승합니다',
     targetScore: 150000,
-    speedBonus: 0.14,
-    spawnBonus: 0.1,
-    hazardBonus: 0.06,
-    rewardBonus: 0.12,
+    baseDifficulty: 0.78,
+    baseAlertTier: 2,
+    carryoverRatio: 0.6,
+    minStartSpeedMultiplier: 1.3,
+    speedBonus: 0.18,
+    spawnBonus: 0.18,
+    hazardBonus: 0.08,
+    rewardBonus: 0.14,
     hazardWeights: { hazard: 0.9, rent: 1.55, tax: 0.65, sub: 0.35 },
   },
   {
@@ -197,10 +224,14 @@ const STAGES: StageDefinition[] = [
     name: '구독 지옥',
     subtitle: '작고 빠른 구독료가 몰려오며 콤보 유지가 핵심입니다',
     targetScore: 220000,
-    speedBonus: 0.22,
-    spawnBonus: 0.16,
-    hazardBonus: 0.09,
-    rewardBonus: 0.2,
+    baseDifficulty: 1.05,
+    baseAlertTier: 3,
+    carryoverRatio: 0.62,
+    minStartSpeedMultiplier: 1.42,
+    speedBonus: 0.26,
+    spawnBonus: 0.26,
+    hazardBonus: 0.11,
+    rewardBonus: 0.22,
     hazardWeights: { hazard: 0.8, rent: 0.8, tax: 0.75, sub: 1.65 },
   },
   {
@@ -208,10 +239,14 @@ const STAGES: StageDefinition[] = [
     name: '블랙카드 심연',
     subtitle: '모든 고정비가 폭주하는 최종 고득점 챌린지',
     targetScore: 300000,
-    speedBonus: 0.32,
-    spawnBonus: 0.24,
-    hazardBonus: 0.13,
-    rewardBonus: 0.32,
+    baseDifficulty: 1.28,
+    baseAlertTier: 4,
+    carryoverRatio: 0.64,
+    minStartSpeedMultiplier: 1.55,
+    speedBonus: 0.34,
+    spawnBonus: 0.34,
+    hazardBonus: 0.15,
+    rewardBonus: 0.35,
     hazardWeights: { hazard: 1.2, rent: 1.15, tax: 1.1, sub: 1.05 },
   },
   {
@@ -219,10 +254,14 @@ const STAGES: StageDefinition[] = [
     name: '연말정산 코어',
     subtitle: '모든 맵 이벤트와 파워업이 섞이는 무한 챌린지',
     targetScore: 420000,
-    speedBonus: 0.42,
-    spawnBonus: 0.34,
-    hazardBonus: 0.18,
-    rewardBonus: 0.45,
+    baseDifficulty: 1.52,
+    baseAlertTier: 5,
+    carryoverRatio: 0.66,
+    minStartSpeedMultiplier: 1.68,
+    speedBonus: 0.44,
+    spawnBonus: 0.44,
+    hazardBonus: 0.2,
+    rewardBonus: 0.48,
     hazardWeights: { hazard: 1.15, rent: 1.2, tax: 1.35, sub: 1.25 },
   },
 ];
@@ -406,6 +445,16 @@ class CometRushScene extends Phaser.Scene {
   private rareEventTriggered?: string;
   private noHitRun = true;
   private resultPreviousBest = 0;
+  private newAchievementNotices: Array<{ id: string; title: string; reward: number }> = [];
+  private pendingStreakReward = 0;
+  private fpsText?: Phaser.GameObjects.Text;
+  private fpsAccumMs = 0;
+  private fpsFrames = 0;
+  private fpsValue = 60;
+  private fpsMinValue = 60;
+  private fpsLastLogMs = 0;
+  private lowFpsSeconds = 0;
+  private lastSfxAt: Record<string, number> = {};
   private roundStartPlays = 0;
   private firstRunMagnetGranted = false;
   private onboardingStep = 0;
@@ -473,6 +522,7 @@ class CometRushScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
+    this.updateFpsMeter(delta);
     const frameDelta = Math.min(delta, MAX_FRAME_DELTA);
     this.updateStars(frameDelta);
 
@@ -524,6 +574,53 @@ class CometRushScene extends Phaser.Scene {
     });
   }
 
+  private updateFpsMeter(delta: number) {
+    const safeDelta = Math.max(1, delta);
+    const instantFps = 1000 / safeDelta;
+    this.fpsAccumMs += safeDelta;
+    this.fpsFrames += 1;
+    this.fpsMinValue = Math.min(this.fpsMinValue, instantFps);
+    this.lowFpsSeconds = instantFps < 45 ? this.lowFpsSeconds + safeDelta / 1000 : Math.max(0, this.lowFpsSeconds - safeDelta / 1600);
+
+    if (this.fpsAccumMs >= 500) {
+      this.fpsValue = Math.round((this.fpsFrames * 1000) / this.fpsAccumMs);
+      this.fpsText?.setText(`FPS ${this.fpsValue} · ${this.performanceProfile.quality}`);
+      this.fpsText?.setColor(this.fpsValue < 45 ? '#ff5f6d' : this.fpsValue < 55 ? '#ffc857' : '#66ffc2');
+      this.fpsAccumMs = 0;
+      this.fpsFrames = 0;
+    }
+
+    if (shouldAutoDowngradeQuality({ saveQuality: this.save.visualQuality, lowFpsSeconds: this.lowFpsSeconds, quality: this.performanceProfile.quality })) {
+      const nextQuality = nextRuntimeQuality(this.performanceProfile.quality);
+      if (nextQuality !== this.performanceProfile.quality) {
+        this.save.visualQuality = nextQuality;
+        this.performanceProfile = { ...this.performanceProfile, quality: nextQuality };
+        this.applyRuntimeQualityProfile();
+        this.persistSave();
+        this.lowFpsSeconds = 0;
+        this.popText(GAME_WIDTH / 2, 166, '프레임 안정화 모드 적용', '#ffc857');
+        this.bridge.log('fps_auto_quality_downgrade', { fps: this.fpsValue, minFps: Math.round(this.fpsMinValue), quality: nextQuality }, 'event');
+      }
+    }
+
+    const now = this.time.now;
+    if (now - this.fpsLastLogMs >= 10000) {
+      this.fpsLastLogMs = now;
+      this.bridge.log('fps_sample', { fps: this.fpsValue, minFps: Math.round(this.fpsMinValue), quality: this.performanceProfile.quality, actors: this.actors.length }, 'event');
+      this.fpsMinValue = this.fpsValue;
+    }
+  }
+
+  private applyRuntimeQualityProfile() {
+    const targetAlpha = this.performanceProfile.quality === 'low' ? 0.22 : this.performanceProfile.quality === 'medium' ? 0.36 : 0.5;
+    for (const star of this.stars) {
+      star.setAlpha(Math.min(star.alpha, targetAlpha));
+    }
+    for (const line of this.speedLines) {
+      line.setAlpha(Math.min(line.alpha, targetAlpha + 0.08));
+    }
+  }
+
   private pauseAudioForBackground() {
     if (this.originalBgmGain != null && this.audio != null) {
       this.originalBgmGain.gain.cancelScheduledValues(this.audio.currentTime);
@@ -564,6 +661,13 @@ class CometRushScene extends Phaser.Scene {
       this.resumeAudioAfterAd();
       void this.bridge.preloadRewardAd(reason);
     }
+  }
+
+  private haptic(type: HapticType) {
+    if (!this.hapticEnabled) {
+      return;
+    }
+    this.bridge.haptic(type);
   }
 
   private buildWorld() {
@@ -676,7 +780,7 @@ class CometRushScene extends Phaser.Scene {
         return;
       }
       if (this.phase === 'playing' && pointer.y > SAFE_TOP + 44) {
-        this.bridge.haptic('tap');
+        this.haptic('tap');
         this.targetX = Phaser.Math.Clamp(pointer.x, 38, GAME_WIDTH - 38);
       }
     });
@@ -836,6 +940,21 @@ class CometRushScene extends Phaser.Scene {
     });
     this.hudObjects.push(pauseButton.group);
 
+    if (new URLSearchParams(window.location.search).get('fps') === '1') {
+      this.fpsText = this.add.text(GAME_WIDTH - 18, 144, 'FPS 60', {
+        align: 'right',
+        fontFamily: 'Pretendard, sans-serif',
+        fontSize: '11px',
+        fontStyle: '900',
+        color: '#66ffc2',
+        backgroundColor: 'rgba(6, 19, 31, 0.68)',
+        padding: { left: 8, right: 8, top: 3, bottom: 3 },
+      });
+      this.fpsText.setOrigin(1, 0);
+      this.fpsText.setDepth(22);
+      this.hudObjects.push(this.fpsText);
+    }
+
     this.setGameplayVisible(false);
   }
 
@@ -929,7 +1048,7 @@ class CometRushScene extends Phaser.Scene {
     const mission = this.add.text(
       GAME_WIDTH / 2,
       layout.missionY,
-      `${this.stageMenuLabel()}\n🔥 연속 ${this.save.streak.current}일 · 주간 ${weekly.completed}/${weekly.total} · 업적 ${unlockedAchievementCount}/5 · 품질 ${this.performanceProfile.quality}`,
+      `${this.stageMenuLabel()}\n🔥 연속 ${this.save.streak.current}일 · 주간 ${weekly.completed}/${weekly.total} · 업적 ${unlockedAchievementCount}/5 · 부드러운 모드`,
       {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
@@ -968,7 +1087,7 @@ class CometRushScene extends Phaser.Scene {
       this.showGrowthPanel();
     });
     const board = this.createButton(314, layout.secondaryY, 96, 46, '랭킹', PALETTE.gold, () => {
-      this.bridge.haptic('tap');
+      this.haptic('tap');
       void this.bridge.openLeaderboard();
     });
     const replayTutorial = this.save.tutorialDone
@@ -1029,6 +1148,16 @@ class CometRushScene extends Phaser.Scene {
       duration: 520,
       ease: 'Cubic.easeOut',
     });
+
+    if (this.pendingStreakReward > 0) {
+      const reward = this.pendingStreakReward;
+      this.pendingStreakReward = 0;
+      this.time.delayedCall(380, () => {
+        this.popText(GAME_WIDTH / 2, Math.max(140, layout.glassY - layout.glassHeight / 2 + 58), `연속 ${this.save.streak.current}일 출석 +${reward} 코인`, reward >= 500 ? '#ffc857' : '#66ffc2');
+        this.haptic(reward >= 250 ? 'confetti' : 'success');
+        this.playTone(reward >= 250 ? [659, 880, 1175, 1568] : [659, 880, 1175], 0.055, 0.1, 'triangle');
+      });
+    }
 
     this.bridge.log('screen_menu', { best: this.save.best, stage: stage.id }, 'screen');
   }
@@ -1441,7 +1570,7 @@ class CometRushScene extends Phaser.Scene {
     cash.setInteractive(new Phaser.Geom.Circle(0, 0, 46), Phaser.Geom.Circle.Contains);
     const cashZone = this.add.zone(GAME_WIDTH / 2, 442, 150, 150).setInteractive();
     const collectCash = () => {
-      this.bridge.haptic('success');
+      this.haptic('success');
       this.playTone([659, 880, 1175], 0.045, 0.085, 'triangle');
       this.burst(cash.x, cash.y, PALETTE.green, 16);
       this.popText(cash.x, cash.y - 44, '+현금', '#66ffc2');
@@ -1575,7 +1704,7 @@ class CometRushScene extends Phaser.Scene {
     const hand = this.createHandCue(292, 692, 0, -44);
     safe.setInteractive();
     safe.on('pointerdown', () => {
-      this.bridge.haptic('tap');
+      this.haptic('tap');
       this.tweens.add({ targets: demo, x: 292, duration: 220, ease: 'Cubic.easeOut' });
       this.tweens.add({ targets: danger, y: 720, duration: 520, ease: 'Cubic.easeIn' });
       this.popText(292, 556, '회피 성공', '#66ffc2');
@@ -1601,7 +1730,7 @@ class CometRushScene extends Phaser.Scene {
     const hand = this.createHandCue(260, 700, 0, -48);
     near.setInteractive();
     near.on('pointerdown', () => {
-      this.bridge.haptic('softMedium');
+      this.haptic('softMedium');
       this.tweens.add({ targets: demo, x: 260, duration: 180, ease: 'Cubic.easeOut' });
       this.tweens.add({ targets: danger, y: 728, duration: 460, ease: 'Cubic.easeIn' });
       this.shockwave(260, 594, PALETTE.gold, 2);
@@ -1642,7 +1771,7 @@ class CometRushScene extends Phaser.Scene {
       group.setSize(300, 98);
       group.setInteractive(new Phaser.Geom.Rectangle(-150, -49, 300, 98), Phaser.Geom.Rectangle.Contains);
       group.on('pointerdown', () => {
-        this.bridge.haptic('success');
+        this.haptic('success');
         this.popText(GAME_WIDTH / 2, card.y - 58, index === 1 ? 'EVO 자동환급장' : `${card.title} 선택`, index === 1 ? '#66ffc2' : '#ffc857');
         this.advanceOnboarding(520);
       });
@@ -1736,7 +1865,7 @@ class CometRushScene extends Phaser.Scene {
 
     if (kind === 'down') {
       this.onboardingDragStartX = pointer.x;
-      this.bridge.haptic('tap');
+      this.haptic('tap');
     }
 
     if (pointer.isDown || kind === 'down') {
@@ -1744,7 +1873,7 @@ class CometRushScene extends Phaser.Scene {
       this.onboardingDemoShip?.setX(x);
 
       if (Math.abs(x - this.onboardingDragStartX) > 88) {
-        this.bridge.haptic('success');
+        this.haptic('success');
         this.popText(x, 584, '이동 완료', '#66ffc2');
         this.advanceOnboarding(220);
       }
@@ -1939,7 +2068,7 @@ class CometRushScene extends Phaser.Scene {
     this.applyPlayerSkin();
     this.setGameplayVisible(true);
     this.clearActors();
-    this.bridge.haptic('success');
+    this.haptic('success');
     this.bridge.log('round_start', { best: this.save.best, plays: this.save.plays + 1, stage: this.currentStage().id });
     this.updateHud();
   }
@@ -2010,6 +2139,12 @@ class CometRushScene extends Phaser.Scene {
 
   private toggleMute() {
     this.muted = !this.muted;
+    this.musicEnabled = !this.muted;
+    this.sfxEnabled = !this.muted;
+    this.save.audio.musicEnabled = this.musicEnabled;
+    this.save.audio.sfxEnabled = this.sfxEnabled;
+    this.save.audio.hapticEnabled = this.hapticEnabled;
+    this.persistSave();
     this.muteHudLabel?.setText(this.muted ? '무음' : '음');
     if (this.testBgm != null) {
       this.testBgm.muted = this.muted;
@@ -2083,7 +2218,7 @@ class CometRushScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
     });
 
-    this.bridge.haptic('softMedium');
+    this.haptic('softMedium');
     this.bridge.log('upgrade_open', { threshold, options: options.map((option) => option.id).join(',') }, 'event');
   }
 
@@ -2159,7 +2294,7 @@ class CometRushScene extends Phaser.Scene {
     this.upgradeLayer?.destroy();
     this.upgradeLayer = undefined;
     this.phase = 'playing';
-    this.bridge.haptic('success');
+    this.haptic('success');
     this.playTone([659, 784, 988], 0.04);
     this.popText(this.player.x, this.player.y - 102, `${this.upgradeTitle(id)} Lv.${this.upgrades[id]}`, '#ffc857');
     this.bridge.log('upgrade_pick', { id, level: this.upgrades[id], score: this.score }, 'event');
@@ -2177,7 +2312,7 @@ class CometRushScene extends Phaser.Scene {
     const kinds: ActorKind[] = next <= 10 ? ['sub', 'tax', 'hazard'] : next <= 25 ? ['tax', 'rent', 'hazard'] : ['rent', 'hazard', 'sub'];
     this.popText(GAME_WIDTH / 2, 190, label, '#ffccd5');
     this.cameras.main.shake(130, 0.006);
-    this.bridge.haptic('wiggle');
+    this.haptic('wiggle');
     this.bridge.log('expense_storm', { threshold: next, label }, 'event');
 
     for (let i = 0; i < 5; i += 1) {
@@ -2243,7 +2378,7 @@ class CometRushScene extends Phaser.Scene {
     this.clearActors();
     this.setGameplayVisible(false);
     this.cameras.main.flash(220, 255, 255, 255, false);
-    this.bridge.haptic(reason === 'crash' ? 'error' : 'confetti');
+    this.haptic(reason === 'crash' ? 'error' : 'confetti');
 
     const oldBest = this.save.best;
     const isRecord = this.score > oldBest;
@@ -2274,6 +2409,7 @@ class CometRushScene extends Phaser.Scene {
     this.save.weekly.fever += this.feverCount;
     this.save.weekly.plays += 1;
     const unlockedAchievements = this.claimRunAchievements();
+    this.newAchievementNotices = unlockedAchievements.map((achievement) => ({ id: achievement.id, title: achievement.title, reward: achievement.reward }));
     if (unlockedAchievements.length > 0) {
       const achievementCredits = unlockedAchievements.reduce((sum, achievement) => sum + achievement.reward, 0);
       this.save.credits += achievementCredits;
@@ -2359,6 +2495,11 @@ class CometRushScene extends Phaser.Scene {
     rank.setOrigin(0.5);
 
     const missionStatus = missionProgress({ shards: this.save.daily.shards, nearMiss: this.save.daily.nearMiss, maxCombo: this.save.daily.maxCombo });
+    const weeklyStatus = weeklyMissionProgress(this.save.weekly);
+    const weeklyClaimable = weeklyStatus.completed >= weeklyStatus.total && this.save.weekly.rewardClaimedWeek !== this.save.weekly.weekKey;
+    const achievementLine = this.newAchievementNotices.length > 0
+      ? `신규 업적 ${this.newAchievementNotices.map((achievement) => achievement.title).slice(0, 2).join(' · ')} +${this.newAchievementNotices.reduce((sum, achievement) => sum + achievement.reward, 0)}`
+      : `업적 ${Object.values(this.save.achievements).filter(Boolean).length}/5`;
     const retryHook = buildRetryHook({
       resultUnlockedStage: this.resultUnlockedStage,
       score: this.score,
@@ -2389,7 +2530,7 @@ class CometRushScene extends Phaser.Scene {
     credit.setOrigin(0.5);
     this.fitText(credit, 292, 11);
 
-    const mission = this.add.text(GAME_WIDTH / 2, 535, `${this.dailyMissionLabel()}\n주간 ${weeklyMissionProgress(this.save.weekly).completed}/4 · 업적 ${Object.values(this.save.achievements).filter(Boolean).length}/5 · 연속 ${this.save.streak.current}일`, {
+    const mission = this.add.text(GAME_WIDTH / 2, 535, `${this.dailyMissionLabel()}\n주간 ${weeklyStatus.completed}/4${weeklyClaimable ? ' · 보상 대기' : ''} · ${achievementLine} · 연속 ${this.save.streak.current}일`, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '12px',
@@ -2417,7 +2558,14 @@ class CometRushScene extends Phaser.Scene {
       this.showGameOver(isRecord, reason);
     });
 
-    const doubleReward = this.createButton(266, 673, 138, 44, '광고 2배', PALETTE.gold, () => {
+    const doubleReward = this.createButton(266, 673, 138, 44, weeklyClaimable ? '주간 +900' : '광고 2배', weeklyClaimable ? PALETTE.green : PALETTE.gold, () => {
+      if (weeklyClaimable) {
+        this.claimWeeklyMissionReward();
+        layer.destroy();
+        this.gameOverLayer = undefined;
+        this.showGameOver(isRecord, reason);
+        return;
+      }
       void this.tryDoubleRewardAd();
     });
 
@@ -2426,7 +2574,7 @@ class CometRushScene extends Phaser.Scene {
     });
 
     const board = this.createButton(266, 725, 138, 44, '랭킹 확인', PALETTE.gold, () => {
-      this.bridge.haptic('tap');
+      this.haptic('tap');
       void this.bridge.openLeaderboard();
     });
 
@@ -2571,9 +2719,11 @@ class CometRushScene extends Phaser.Scene {
     const clutch = this.timeLeft <= 10;
     const stage = this.currentStage();
     const tier = this.scoreAlertTier();
+    const elapsedSeconds = ROUND_SECONDS - this.timeLeft;
+    const startCompression = stage.id >= 2 && elapsedSeconds < 12 ? stage.baseDifficulty * 28 : 0;
     const interval = Math.max(
-      clutch ? 150 : 210,
-      660 - this.difficulty * 105 - tier * 24 - stage.spawnBonus * 180 - (this.feverMs > 0 ? 75 : 0) - (clutch ? 95 : 0),
+      clutch ? 135 : 190,
+      660 - this.difficulty * 105 - tier * 24 - stage.spawnBonus * 180 - startCompression - (this.feverMs > 0 ? 75 : 0) - (clutch ? 95 : 0),
     );
 
     if (this.spawnElapsed < interval) {
@@ -2581,7 +2731,6 @@ class CometRushScene extends Phaser.Scene {
     }
 
     this.spawnElapsed = 0;
-    const elapsedSeconds = ROUND_SECONDS - this.timeLeft;
     const assist = firstRunAssistProfile(this.roundStartPlays, elapsedSeconds);
     if (assist.guaranteeMagnet && !this.firstRunMagnetGranted) {
       this.firstRunMagnetGranted = true;
@@ -2664,7 +2813,7 @@ class CometRushScene extends Phaser.Scene {
       this.burst(this.player.x, this.player.y - 70, PALETTE.sky, 16);
     }
     this.playTone([523, 659, 784, 1046], 0.05);
-    this.bridge.haptic('confetti');
+    this.haptic('confetti');
     this.bridge.log('rare_event', { event, score: this.score, elapsedSeconds: Math.round(elapsedSeconds) }, 'event');
   }
 
@@ -2698,7 +2847,8 @@ class CometRushScene extends Phaser.Scene {
       speedMultiplier *
       (isFever && this.isHazard(kind) ? 0.76 : 1) *
       (this.isHazard(kind) ? slowFactor : 1);
-    const baseScale = this.isHazard(kind) ? Phaser.Math.FloatBetween(0.92, 1.2) : this.isPowerItem(kind) ? Phaser.Math.FloatBetween(0.9, 1.08) : Phaser.Math.FloatBetween(0.86, 1.18);
+    const juice = actorJuiceProfile(kind, this.currentStage().id, this.actors.length);
+    const baseScale = juice.scale;
     const actor: Actor = {
       kind,
       image,
@@ -2706,7 +2856,9 @@ class CometRushScene extends Phaser.Scene {
       speed: Math.min(MAX_ACTOR_SPEED, baseSpeed),
       value: Math.round(baseValue * rewardMultiplier),
       wobble: Phaser.Math.FloatBetween(0.014, 0.031),
-      baseScale,
+      juiceScale: baseScale,
+      juiceAura: juice.aura,
+      laneWobble: juice.laneWobble,
     };
 
     image.setDepth(this.isHazard(kind) ? 8 : 7);
@@ -2741,7 +2893,7 @@ class CometRushScene extends Phaser.Scene {
                 ? 'salary-boost'
               : 'cash-float',
     );
-    this.applyGlow(image, this.actorGlowColor(kind), this.isPowerItem(kind) ? 0.38 : 0.25);
+    this.applyGlow(image, this.actorGlowColor(kind), this.isPowerItem(kind) ? 0.38 : this.isHazard(kind) ? 0.2 + juice.aura * 0.05 : 0.25 + juice.aura * 0.04);
     this.actors.push(actor);
   }
 
@@ -2752,12 +2904,12 @@ class CometRushScene extends Phaser.Scene {
     const toRemove = new Set<Actor>();
 
     for (const actor of this.actors) {
-      const wave = Math.sin((actor.image.y + actor.image.x) * actor.wobble) * (this.isHazard(actor.kind) ? 22 : 9);
+      const wave = Math.sin((actor.image.y + actor.image.x) * actor.wobble) * (this.isHazard(actor.kind) ? 22 + actor.laneWobble : 9 + actor.laneWobble * 0.35);
       actor.image.y += actor.speed * dt;
       actor.image.x += wave * dt;
       actor.image.rotation += dt * (this.isHazard(actor.kind) ? 1.9 : actor.kind === 'boost' ? 5.4 : 3.8);
       const pulse = 1 + Math.sin(this.time.now * 0.006 + actor.wobble * 100) * 0.018;
-      actor.image.setScale(actor.baseScale * pulse, actor.baseScale);
+      actor.image.setScale(actor.juiceScale * pulse, actor.juiceScale);
 
       const distance = Phaser.Math.Distance.Between(playerX, playerY, actor.image.x, actor.image.y);
       const magnetRange = this.magnetRange();
@@ -2794,11 +2946,15 @@ class CometRushScene extends Phaser.Scene {
         actor.nearMissed = true;
         this.nearChain = Math.min(9, this.nearChain + 1);
         this.nearMiss += 1;
+        const juice = nearMissJuiceProfile(this.nearChain);
         this.overdrive = Math.min(100, this.overdrive + 10 + this.nearChain * 5 + Math.min(18, this.combo) + this.upgrades.rebate * 4);
-        this.score += Math.round((90 + this.combo * 7 + this.nearChain * 35) * (1 + this.upgrades.rebate * 0.18 + this.save.meta.luck * 0.025));
-        this.bridge.haptic(this.nearChain >= 3 ? 'tickMedium' : 'tickWeak');
-        this.burst(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, this.nearChain >= 3 ? 15 : 8);
-        this.popText(actor.image.x, actor.image.y - 20, this.nearChain >= 2 ? `가까이 회피 x${this.nearChain}` : '가까이 회피 +각성', this.nearChain >= 3 ? '#ffc857' : '#cfc4ff');
+        this.score += Math.round((juice.scoreBonus + this.combo * 7 + this.nearChain * 35) * (1 + this.upgrades.rebate * 0.18 + this.save.meta.luck * 0.025));
+        this.haptic(this.nearChain >= 3 ? 'tickMedium' : 'tickWeak');
+        this.cameras.main.shake(juice.freezeMs, juice.shake);
+        this.burst(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, this.nearChain >= 3 ? 24 : 14);
+        this.shockwave(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, 1.15 + Math.min(1.2, this.nearChain * 0.16));
+        this.playTone([juice.pitch, Math.min(1320, juice.pitch * 1.26)], 0.026, 0.07 + Math.min(0.045, this.nearChain * 0.006), 'triangle');
+        this.popText(actor.image.x, actor.image.y - 24, this.nearChain >= 2 ? `스쳤다! x${this.nearChain}` : '스쳤다! +각성', this.nearChain >= 3 ? '#ffc857' : '#cfc4ff');
         if (this.nearChain === 3 || this.nearChain === 6) {
           this.bridge.log('near_miss_chain', { chain: this.nearChain, score: this.score }, 'event');
         }
@@ -2836,6 +2992,8 @@ class CometRushScene extends Phaser.Scene {
     this.maxCombo = Math.max(this.maxCombo, this.combo);
     this.lastCollectMs = now;
 
+    const rhythm = comboRhythmProfile(this.combo);
+    this.comboGraceMs = Math.max(1650, 1650 + rhythm.beat * 55);
     const feverMultiplier = this.feverMs > 0 ? 2.1 + this.upgrades.payday * 0.18 + this.save.meta.luck * 0.03 + (this.hasEvolution('thirteenthPay') ? 0.35 : 0) : 1;
     const comboMultiplier = 1 + Math.min(this.combo, 36) * 0.045;
     const hpBonus = actor.kind === 'pulse' ? 0 : this.hp * 8;
@@ -2843,21 +3001,28 @@ class CometRushScene extends Phaser.Scene {
     this.score += Math.round((actor.value + hpBonus) * comboMultiplier * feverMultiplier * rebateMultiplier);
     this.tweens.add({
       targets: [this.scoreText, this.scoreCard],
-      scale: 1.06,
-      duration: 70,
+      scale: 1.04 + rhythm.multiplier * 0.025,
+      duration: Math.max(42, 86 - rhythm.beat * 5),
+      yoyo: true,
+      ease: 'Back.easeOut',
+    });
+    this.tweens.add({
+      targets: this.comboText,
+      scale: Math.max(1.08, 1 + rhythm.multiplier * 0.08),
+      duration: Math.max(38, 76 - rhythm.beat * 5),
       yoyo: true,
       ease: 'Back.easeOut',
     });
 
     if (actor.kind === 'shard' || actor.kind === 'coin' || actor.kind === 'boost') {
       this.shards += 1;
-      this.bridge.haptic(this.combo % 8 === 0 ? 'tickMedium' : 'tickWeak');
+      this.haptic(this.combo % 8 === 0 ? 'tickMedium' : 'tickWeak');
     }
 
     if (actor.kind === 'coin') {
-      this.playTone([988, 1319], 0.038, 0.075, 'triangle');
+      this.playTone([988, 1319 + rhythm.pitch], 0.032, 0.075 + rhythm.multiplier * 0.025, 'triangle');
     } else if (actor.kind === 'shard') {
-      this.playTone([659 + Math.min(8, this.combo) * 28], 0.045, 0.055, 'triangle');
+      this.playTone([659 + Math.min(12, this.combo) * 32 + rhythm.pitch], 0.036, 0.058 + rhythm.multiplier * 0.02, 'triangle');
     }
 
     if (actor.kind === 'pulse') {
@@ -2871,7 +3036,7 @@ class CometRushScene extends Phaser.Scene {
     if (actor.kind === 'boost') {
       this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 1.8 + this.upgrades.overtime * 0.28 + (this.hasEvolution('thirteenthPay') ? 0.45 : 0));
       this.overdrive = Math.min(100, this.overdrive + 8);
-      this.bridge.haptic('softMedium');
+      this.haptic('softMedium');
       this.playTone([523, 784, 1047], 0.04, 0.08, 'triangle');
       this.popText(actor.image.x, actor.image.y - 18, '+1.8초', '#66ffc2');
       this.tweens.add({
@@ -2889,9 +3054,9 @@ class CometRushScene extends Phaser.Scene {
 
     if (this.combo > 0 && this.combo % 10 === 0) {
       this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 1.2);
-      this.bridge.haptic('softMedium');
+      this.haptic('softMedium');
       this.bridge.log('combo_milestone', { combo: this.combo, score: this.score }, 'event');
-      this.popText(this.player.x, this.player.y - 74, '콤보 +1.2초', '#ffc857');
+      this.popText(this.player.x, this.player.y - 74, `COMBO ${this.combo} · +1.2초`, '#ffc857');
       this.tweens.add({
         targets: [this.timerText, this.scoreText],
         scale: 1.09,
@@ -2914,7 +3079,7 @@ class CometRushScene extends Phaser.Scene {
     this.comboGraceMs = 2200;
     this.cameras.main.flash(190, 0, 194, 255, false);
     this.shockwave(this.player.x, this.player.y - 26, PALETTE.gold, 3);
-    this.bridge.haptic('confetti');
+    this.haptic('confetti');
     this.bridge.log('fever_start', { combo: this.combo, score: this.score });
     this.playTone([523, 659, 784], 0.045);
 
@@ -2930,14 +3095,14 @@ class CometRushScene extends Phaser.Scene {
   private takeHit() {
     if (this.boosterMs > 0) {
       this.score += 90;
-      this.bridge.haptic('basicMedium');
+      this.haptic('basicMedium');
       this.popText(this.player.x, this.player.y - 88, '부스터 방어', '#ffc857');
       return;
     }
 
     if (this.feverMs > 0) {
       this.score += 140;
-      this.bridge.haptic('basicMedium');
+      this.haptic('basicMedium');
       this.cameras.main.shake(90, 0.005);
       this.popText(this.player.x, this.player.y - 88, '파산 방어', '#ffc857');
       this.playTone([196, 392], 0.04);
@@ -2947,7 +3112,7 @@ class CometRushScene extends Phaser.Scene {
     if (this.upgrades.shield > 0) {
       this.upgrades.shield -= 1;
       this.score += 90;
-      this.bridge.haptic('success');
+      this.haptic('success');
       this.cameras.main.shake(110, 0.006);
       this.shockwave(this.player.x, this.player.y - 12, PALETTE.violet, 2);
       if (this.hasEvolution('debtFreeze')) {
@@ -2963,7 +3128,7 @@ class CometRushScene extends Phaser.Scene {
     this.combo = 0;
     this.nearChain = 0;
     this.comboGraceMs = 1650;
-    this.bridge.haptic('wiggle');
+    this.haptic('wiggle');
     this.bridge.log('player_hit', { hp: this.hp, score: this.score, timeLeft: Math.round(this.timeLeft * 10) / 10 }, 'event');
     this.playTone([130, 98], 0.075);
     this.cameras.main.shake(170, 0.012);
@@ -2981,7 +3146,8 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private updatePlayer(delta: number) {
-    const lerp = 1 - Math.pow(0.002, delta / 1000);
+    const response = this.currentStage().id >= 3 ? 0.00125 : 0.00155;
+    const lerp = 1 - Math.pow(response, delta / 1000);
     this.player.x = Phaser.Math.Linear(this.player.x, this.targetX, lerp);
     this.player.y = PLAYER_Y + Math.sin(this.time.now * 0.007) * 5;
     this.player.rotation = Phaser.Math.Clamp((this.targetX - this.player.x) * 0.005, -0.28, 0.28);
@@ -3114,7 +3280,8 @@ class CometRushScene extends Phaser.Scene {
     const maxHp = this.maxHp();
     const shield = this.upgrades.shield > 0 ? ` · 보험 ${this.upgrades.shield}` : '';
     this.comboText.setFontSize(13);
-    this.comboText.setText(`콤보 ${this.combo} · 체력 ${'◆'.repeat(Math.max(0, this.hp))}${'◇'.repeat(Math.max(0, maxHp - this.hp))}${shield}`);
+    const comboLabel = this.combo >= 24 ? `FEVER ${this.combo}` : this.combo >= 8 ? `${this.combo} COMBO!` : `콤보 ${this.combo}`;
+    this.comboText.setText(`${comboLabel} · 체력 ${'◆'.repeat(Math.max(0, this.hp))}${'◇'.repeat(Math.max(0, maxHp - this.hp))}${shield}`);
     this.fitText(this.comboText, 245, 9);
 
     const fever = this.feverMs > 0 ? ` · 각성 ${feverSeconds}s` : '';
@@ -3364,7 +3531,7 @@ class CometRushScene extends Phaser.Scene {
     group.setDepth(22);
     group.setSize(width, height);
     const fire = () => {
-      this.bridge.haptic('tap');
+      this.haptic('tap');
       this.tweens.add({
         targets: group,
         scale: 0.94,
@@ -3416,7 +3583,7 @@ class CometRushScene extends Phaser.Scene {
       }
 
       locked = true;
-      this.bridge.haptic('tap');
+      this.haptic('tap');
       this.tweens.add({
         targets: group,
         scale: 0.96,
@@ -4134,6 +4301,9 @@ class CometRushScene extends Phaser.Scene {
     if (loginReward > 0) {
       parsed.credits += loginReward;
       parsed.streak.rewardClaimedDate = today;
+      this.pendingStreakReward = loginReward;
+    } else {
+      this.pendingStreakReward = 0;
     }
     const weekKey = this.weekKey(today);
     if (parsed.weekly.weekKey !== weekKey) {
@@ -4160,7 +4330,7 @@ class CometRushScene extends Phaser.Scene {
   private async shareResultCard() {
     const copy = resultShareCopy({ score: this.score, rank: this.rankLabel(), nearMiss: this.nearMiss, feverCount: this.feverCount });
     const url = 'https://0ssol1620-byte.github.io/toss-comet-rush/';
-    this.bridge.haptic('success');
+    this.haptic('success');
     this.bridge.log('share_click', { score: this.score, rank: this.rankLabel(), nearMiss: this.nearMiss }, 'click');
     if (navigator.share != null) {
       await navigator.share({ title: '월급 방어전', text: copy, url }).catch(() => undefined);
@@ -4211,7 +4381,7 @@ class CometRushScene extends Phaser.Scene {
       this.save.dailyRewardClaimedDate === this.save.dailyDate,
     );
     if (!state.claimable) {
-      this.bridge.haptic('tap');
+      this.haptic('tap');
       this.popText(GAME_WIDTH / 2, 632, state.complete ? '오늘 보상은 이미 수령했어요' : '미션 3개 완료 후 수령!', '#ffc857');
       return false;
     }
@@ -4219,10 +4389,35 @@ class CometRushScene extends Phaser.Scene {
     this.save.credits += DAILY_MISSION_REWARD;
     this.save.dailyRewardClaimedDate = this.save.dailyDate;
     this.persistSave();
-    this.bridge.haptic('confetti');
+    this.haptic('confetti');
     this.playTone([784, 988, 1319, 1568], 0.065, 0.12, 'triangle');
     this.popText(GAME_WIDTH / 2, 632, `미션 보상 +${DAILY_MISSION_REWARD}`, '#66ffc2');
     this.bridge.log('daily_mission_complete', { reward: DAILY_MISSION_REWARD, date: this.save.dailyDate }, 'event');
+    return true;
+  }
+
+  private claimWeeklyMissionReward() {
+    const weekly = weeklyMissionProgress(this.save.weekly);
+    if (weekly.completed < weekly.total) {
+      this.haptic('tap');
+      this.popText(GAME_WIDTH / 2, 632, `주간 미션 ${weekly.total - weekly.completed}개 남았어요`, '#ffc857');
+      return false;
+    }
+    if (this.save.weekly.rewardClaimedWeek === this.save.weekly.weekKey) {
+      this.haptic('tap');
+      this.popText(GAME_WIDTH / 2, 632, '이번 주 보상은 이미 받았어요', '#ffc857');
+      return false;
+    }
+
+    const reward = 900;
+    this.save.credits += reward;
+    this.resultCredits += reward;
+    this.save.weekly.rewardClaimedWeek = this.save.weekly.weekKey;
+    this.persistSave();
+    this.haptic('confetti');
+    this.playTone([659, 880, 1175, 1568], 0.07, 0.13, 'triangle');
+    this.popText(GAME_WIDTH / 2, 632, `주간 월급왕 보상 +${reward}`, '#66ffc2');
+    this.bridge.log('weekly_mission_reward_claim', { weekKey: this.save.weekly.weekKey, reward }, 'event');
     return true;
   }
 
@@ -4234,14 +4429,14 @@ class CometRushScene extends Phaser.Scene {
 
     const result = await this.runRewardAd('doubleReward');
     if (!result.rewarded) {
-      this.bridge.haptic('tickWeak');
+      this.haptic('tickWeak');
       this.popText(GAME_WIDTH / 2, 632, result.supported ? '광고 보상이 완료되지 않았어요' : '현재 광고 미지원 환경이에요', '#ffc857');
       return;
     }
 
     this.save.credits += this.resultCredits;
     this.persistSave();
-    this.bridge.haptic('confetti');
+    this.haptic('confetti');
     this.playTone([880, 1175, 1568], 0.07, 0.12, 'triangle');
     this.popText(GAME_WIDTH / 2, 632, `코인 2배 +${this.resultCredits}`, '#66ffc2');
     this.bridge.log('reward_double_ad_reward', { credits: this.resultCredits }, 'event');
@@ -4354,20 +4549,18 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private scoreAlertTier() {
-    return Math.min(MAX_ALERT_TIER, Math.max(0, Math.floor(this.score / SCORE_TIER_SIZE)));
+    return stageAlertTier(this.currentStage(), this.score, SCORE_TIER_SIZE, MAX_ALERT_TIER);
   }
 
   private effectiveDifficulty() {
-    const timePressure = (ROUND_SECONDS - this.timeLeft) / 28;
-    const alertPressure = this.scoreAlertTier() * 0.2;
-    const stagePressure = this.currentStage().speedBonus * 1.2;
-    return Phaser.Math.Clamp(1 + timePressure + alertPressure + stagePressure, 1, MAX_DIFFICULTY);
+    const elapsed = ROUND_SECONDS - this.timeLeft;
+    const stage = this.currentStage();
+    return stageDifficulty(stage, elapsed, this.scoreAlertTier(), this.timeLeft, MAX_DIFFICULTY);
   }
 
   private scoreSpeedMultiplier() {
-    const tier = this.scoreAlertTier();
     const stage = this.currentStage();
-    return Math.min(MAX_ALERT_SPEED_MULTIPLIER, 1 + tier * 0.12 + stage.speedBonus);
+    return stageSpeedMultiplier(stage, this.scoreAlertTier(), MAX_ALERT_SPEED_MULTIPLIER);
   }
 
   private rewardMultiplier() {
@@ -4395,7 +4588,7 @@ class CometRushScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
     });
     this.cameras.main.shake(150 + Math.min(160, tier * 22), 0.005 + Math.min(0.008, tier * 0.0012));
-    this.bridge.haptic(tier >= 3 ? 'wiggle' : 'softMedium');
+    this.haptic(tier >= 3 ? 'wiggle' : 'softMedium');
     this.bridge.log('salary_alert', { tier, score: this.score, stage: this.currentStage().id, speed }, 'event');
 
     const extraHazards = Math.min(4, 1 + Math.floor(tier / 2));
@@ -4439,7 +4632,7 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private cycleStage() {
-    this.bridge.haptic('tap');
+    this.haptic('tap');
     this.popText(GAME_WIDTH / 2, 720, '맵은 클리어 흐름에 따라 자동으로 다음 스테이지로 이동합니다', '#ffc857');
     this.bridge.log('stage_progression_hint', { stage: this.currentStage().id }, 'event');
   }
@@ -4460,7 +4653,7 @@ class CometRushScene extends Phaser.Scene {
       }
 
       this.activeEvolutions.add(evolution.id);
-      this.bridge.haptic('confetti');
+      this.haptic('confetti');
       this.shockwave(this.player.x, this.player.y - 28, PALETTE.green, 3);
       this.popText(this.player.x, this.player.y - 130, `EVO ${evolution.name}`, '#66ffc2');
       this.bridge.log('evolution_unlock', { id: evolution.id, name: evolution.name, score: this.score }, 'event');
@@ -4493,34 +4686,34 @@ class CometRushScene extends Phaser.Scene {
       this.magnetMs = this.stackPowerDuration(this.magnetMs, 6200 + this.upgrades.magnet * 420, 12000);
       this.popText(x, y - 34, `급여자석 ${(this.magnetMs / 1000).toFixed(1)}초`, '#66ffc2');
       this.playTone([440, 660, 990], 0.045, 0.09, 'sine');
-      this.bridge.haptic('success');
+      this.haptic('success');
     } else if (kind === 'shieldItem') {
       this.upgrades.shield += 1;
       this.popText(x, y - 34, '파산보험 +1', '#cfc4ff');
       this.playTone([392, 523, 784], 0.05, 0.08, 'triangle');
-      this.bridge.haptic('success');
+      this.haptic('success');
     } else if (kind === 'autopilotItem') {
       this.autopilotMs = this.stackPowerDuration(this.autopilotMs, 4400, 9000);
       this.popText(x, y - 34, `오토파일럿 ${(this.autopilotMs / 1000).toFixed(1)}초`, '#cfc4ff');
       this.playTone([330, 494, 659, 988], 0.035, 0.075, 'square');
-      this.bridge.haptic('softMedium');
+      this.haptic('softMedium');
     } else if (kind === 'freezeItem') {
       this.freezeMs = this.stackPowerDuration(this.freezeMs, 5200, 11000);
       this.freezeHazards();
       this.popText(x, y - 34, `채무동결 ${(this.freezeMs / 1000).toFixed(1)}초`, '#9defff');
       this.playTone([784, 523, 392], 0.05, 0.075, 'sine');
-      this.bridge.haptic('softMedium');
+      this.haptic('softMedium');
     } else if (kind === 'droneItem') {
       this.droneMs = this.stackPowerDuration(this.droneMs, 7200, 14000);
       this.popText(x, y - 34, `재무팀 드론 ${(this.droneMs / 1000).toFixed(1)}초`, '#9defff');
       this.playTone([740, 880, 1175], 0.04, 0.08, 'square');
-      this.bridge.haptic('success');
+      this.haptic('success');
     } else if (kind === 'boosterItem') {
       this.boosterMs = this.stackPowerDuration(this.boosterMs, 3300, 7000);
       this.score += 420;
       this.popText(x, y - 34, `월급 부스터 ${(this.boosterMs / 1000).toFixed(1)}초`, '#ffc857');
       this.playTone([196, 392, 784, 1175], 0.035, 0.09, 'sawtooth');
-      this.bridge.haptic('confetti');
+      this.haptic('confetti');
     }
 
     this.bridge.log('power_item_collect', { kind, stage: this.currentStage().id, score: this.score }, 'event');
@@ -4595,7 +4788,7 @@ class CometRushScene extends Phaser.Scene {
     const reopenGrowth = this.growthLayer != null;
     const cost = this.metaUpgradeCost();
     if (this.save.credits < cost) {
-      this.bridge.haptic('error');
+      this.haptic('error');
       this.popText(GAME_WIDTH / 2, 720, `월급코인 ${cost - this.save.credits} 부족`, '#ffccd5');
       this.bridge.log('meta_upgrade_blocked', { credits: this.save.credits, cost }, 'event');
       return;
@@ -4611,7 +4804,7 @@ class CometRushScene extends Phaser.Scene {
     this.save.credits -= cost;
     this.save.meta[target] += 1;
     this.persistSave();
-    this.bridge.haptic('success');
+    this.haptic('success');
     this.bridge.log('meta_upgrade_buy', { target, level: this.save.meta[target], cost }, 'event');
     this.showMenu();
     if (reopenGrowth) {
@@ -4627,7 +4820,7 @@ class CometRushScene extends Phaser.Scene {
       if (this.save.best >= SKINS[index].unlock) {
         this.save.selectedSkin = index;
         this.persistSave();
-        this.bridge.haptic('tap');
+        this.haptic('tap');
         this.bridge.log('skin_change', { skin: SKINS[index].name }, 'event');
         this.showMenu();
         if (reopenGrowth) {
@@ -4809,7 +5002,9 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private playKick(volume: number) {
-    if (this.audio == null || this.muted || !this.sfxEnabled) {
+    const throttle = sfxThrottleAllows(this.lastSfxAt, 'kick', this.time.now, 55);
+    this.lastSfxAt = throttle.last;
+    if (this.audio == null || this.muted || !this.sfxEnabled || !throttle.allowed) {
       return;
     }
 
@@ -4830,7 +5025,9 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private playNoiseBurst(volume: number, length: number, frequency: number, filterType: BiquadFilterType) {
-    if (this.audio == null || this.muted || !this.sfxEnabled) {
+    const throttle = sfxThrottleAllows(this.lastSfxAt, 'noise', this.time.now, 38);
+    this.lastSfxAt = throttle.last;
+    if (this.audio == null || this.muted || !this.sfxEnabled || !throttle.allowed) {
       return;
     }
 
@@ -4857,7 +5054,10 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private playTone(notes: number[], length: number, volume = 0.075, type: OscillatorType = 'triangle') {
-    if (this.audio == null || this.muted || !this.sfxEnabled) {
+    const key = `tone:${type}:${notes[0] ?? 0}`;
+    const throttle = sfxThrottleAllows(this.lastSfxAt, key, this.time.now, notes.length > 2 ? 45 : 28);
+    this.lastSfxAt = throttle.last;
+    if (this.audio == null || this.muted || !this.sfxEnabled || !throttle.allowed) {
       return;
     }
 
