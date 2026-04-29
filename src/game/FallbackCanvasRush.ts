@@ -60,10 +60,11 @@ export function createFallbackCometRush(parent: HTMLElement, bridge: TossBridge)
   canvas.style.touchAction = 'none';
   parent.append(canvas);
 
-  const ctx = canvas.getContext('2d');
-  if (ctx == null) {
+  const rawCtx = canvas.getContext('2d');
+  if (rawCtx == null) {
     throw new Error('Canvas 2D is not available.');
   }
+  const ctx: CanvasRenderingContext2D = rawCtx;
 
   const stars = Array.from({ length: 150 }, (_, i) => ({
     x: Math.random() * W,

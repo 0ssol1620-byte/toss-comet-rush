@@ -12,6 +12,15 @@ export type HapticType =
 
 type Primitive = string | number | boolean | null | undefined;
 
+export type AdReason = 'revive' | 'doubleReward' | 'headStart';
+
+export type RewardAdResult = {
+  supported: boolean;
+  loaded: boolean;
+  rewarded: boolean;
+  status: 'rewarded' | 'closed' | 'failed' | 'unsupported';
+};
+
 type TossRuntime = {
   eventLog?: (params: {
     log_name: string;
@@ -24,6 +33,9 @@ type TossRuntime = {
   openGameCenterLeaderboard?: () => Promise<void>;
   requestReview?: () => Promise<void>;
   submitGameCenterLeaderBoardScore?: (params: { score: string }) => Promise<{ statusCode: string } | undefined>;
+  loadRewardedAd?: (params?: { adUnitId?: string; placement?: string }) => Promise<unknown>;
+  preloadRewardedAd?: (params?: { adUnitId?: string; placement?: string }) => Promise<unknown>;
+  showRewardedAd?: (params?: { adUnitId?: string; placement?: string }) => Promise<unknown>;
 };
 
 export type TossBridge = {
@@ -33,6 +45,8 @@ export type TossBridge = {
   openLeaderboard: () => Promise<void>;
   requestReview: () => Promise<void>;
   submitScore: (score: number) => Promise<string>;
+  preloadRewardAd: (reason: AdReason) => Promise<void>;
+  showRewardAd: (reason: AdReason) => Promise<RewardAdResult>;
 };
 
 declare global {
@@ -103,6 +117,27 @@ function safeLocalUserId() {
     // File previews or restricted WebViews may block storage.
   }
   return generated;
+}
+
+function adPlacement(reason: AdReason) {
+  const envKey = `VITE_TOSS_REWARD_AD_${reason.toUpperCase()}`;
+  return String(import.meta.env[envKey] ?? import.meta.env.VITE_TOSS_REWARD_AD_TEST_ID ?? `test-${reason}`);
+}
+
+function parseRewardResult(raw: unknown): RewardAdResult {
+  if (raw && typeof raw === 'object') {
+    const record = raw as Record<string, unknown>;
+    const rewarded = record.rewarded === true || record.status === 'rewarded' || record.type === 'REWARDED';
+    const closed = record.status === 'closed' || record.type === 'CLOSED';
+    return {
+      supported: true,
+      loaded: true,
+      rewarded,
+      status: rewarded ? 'rewarded' : closed ? 'closed' : 'failed',
+    };
+  }
+
+  return { supported: true, loaded: true, rewarded: false, status: 'closed' };
 }
 
 export function createTossBridge(): TossBridge {
@@ -181,6 +216,29 @@ export function createTossBridge(): TossBridge {
       }
 
       return 'LOCAL_ONLY';
+    },
+
+    async preloadRewardAd(reason) {
+      const runtime = await getTossRuntime();
+      if (!isAppsInTossRuntime()) return;
+
+      const params = { adUnitId: adPlacement(reason), placement: reason };
+      if (runtime?.preloadRewardedAd != null) {
+        await runtime.preloadRewardedAd(params).catch(() => undefined);
+      } else if (runtime?.loadRewardedAd != null) {
+        await runtime.loadRewardedAd(params).catch(() => undefined);
+      }
+    },
+
+    async showRewardAd(reason) {
+      const runtime = await getTossRuntime();
+      if (!isAppsInTossRuntime() || runtime?.showRewardedAd == null) {
+        return { supported: false, loaded: false, rewarded: false, status: 'unsupported' };
+      }
+
+      const params = { adUnitId: adPlacement(reason), placement: reason };
+      const result = await runtime.showRewardedAd(params).catch(() => undefined);
+      return parseRewardResult(result);
     },
   };
 }

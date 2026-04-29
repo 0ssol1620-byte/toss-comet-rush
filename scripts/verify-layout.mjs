@@ -124,8 +124,9 @@ checkScreen('gameover', [
   { name: 'credits', top: 486, bottom: 510 },
   { name: 'mission', top: 515, bottom: 555 },
   { name: 'retry', top: 583, bottom: 641 },
-  { name: 'leaderboard', top: 658, bottom: 704 },
-  { name: 'menu', top: 721, bottom: 767 },
+  { name: 'reward-row', top: 651, bottom: 695 },
+  { name: 'leaderboard', top: 703, bottom: 747 },
+  { name: 'menu', top: 757, bottom: 801 },
 ]);
 
 checkRectScreen('hud', [
@@ -165,7 +166,7 @@ assert(source.includes("this.renderPauseLayer();"), 'pause overlay is not implem
 assert(source.includes("this.showUpgradeChoice"), 'run upgrade choice is not implemented');
 assert(source.includes("meta_upgrade_buy"), 'meta progression analytics are not implemented');
 assert(source.includes("'rent' | 'tax' | 'sub'"), 'expanded financial hazard types are not implemented');
-assert(source.includes("BUILD_VERSION = 'v12'"), 'source build stamp is not v12');
+assert(source.includes("BUILD_VERSION = 'v13-retention'"), 'source build stamp is not v13-retention');
 assert(source.includes('MAX_FRAME_DELTA = 50'), 'frame delta clamp is not implemented');
 assert(source.includes('MAX_ACTORS = 38'), 'active actor cap is not implemented');
 assert(source.includes('MAX_DIFFICULTY = 4.15'), 'difficulty cap is not implemented');
@@ -201,7 +202,7 @@ for (const target of exportsToCheck) {
   }
 
   const html = await readFile(target, 'utf8');
-  assert(html.includes('v12'), `export ${target} does not contain v12 stamp`);
+  assert(html.includes('v13-retention'), `export ${target} does not contain v13-retention stamp`);
   assert(html.includes('screen_onboarding'), `export ${target} does not contain onboarding screen analytics`);
   assert(html.includes('onboarding_complete'), `export ${target} does not contain onboarding completion analytics`);
   assert(html.includes('screen_growth'), `export ${target} does not contain growth screen analytics`);

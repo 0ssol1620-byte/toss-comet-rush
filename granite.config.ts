@@ -1,6 +1,6 @@
 import { defineConfig } from '@apps-in-toss/web-framework/config';
 
-export default defineConfig({
+const config: unknown = defineConfig({
   appName: 'comet-rush',
   brand: {
     displayName: '코멧 러시',
@@ -21,3 +21,5 @@ export default defineConfig({
   permissions: [],
   outdir: 'dist',
 });
+
+export default config;

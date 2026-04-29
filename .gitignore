@@ -7,3 +7,6 @@ play-direct.html
 *.log
 *.tsbuildinfo
 public/ncs-test.mp3
+.granite/
+*.ait
+pnpm-lock.yaml
