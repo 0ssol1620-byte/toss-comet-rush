@@ -33,6 +33,11 @@ const MAX_DIFFICULTY = 4.15;
 const MAX_ACTOR_SPEED = 820;
 const MAX_ACTORS = 38;
 const MAX_FRAME_DELTA = 50;
+const MASTER_VOLUME = 0.34;
+const ORIGINAL_BGM_VOLUME = 0.56;
+const ORIGINAL_BGM_RESUME_VOLUME = 0.5;
+const TEST_BGM_VOLUME = 0.92;
+const SFX_VOLUME_MULTIPLIER = 1.22;
 
 type Phase = 'menu' | 'tutorial' | 'onboarding' | 'playing' | 'upgrade' | 'paused' | 'gameover';
 type ActorKind =
@@ -533,7 +538,7 @@ class CometRushScene extends Phaser.Scene {
     if (this.muted || !this.musicEnabled) return;
     if (this.originalBgmGain != null && this.audio != null) {
       this.originalBgmGain.gain.cancelScheduledValues(this.audio.currentTime);
-      this.originalBgmGain.gain.setTargetAtTime(0.18, this.audio.currentTime, 0.08);
+      this.originalBgmGain.gain.setTargetAtTime(ORIGINAL_BGM_RESUME_VOLUME, this.audio.currentTime, 0.08);
     }
     if (this.testBgm != null && this.testBgmActive) {
       void this.testBgm.play().catch(() => undefined);
@@ -2010,7 +2015,7 @@ class CometRushScene extends Phaser.Scene {
       this.testBgm.muted = this.muted;
     }
     if (this.originalBgmGain != null && this.audio != null) {
-      this.originalBgmGain.gain.setTargetAtTime(this.muted || this.testBgmActive ? 0 : 0.36, this.audio.currentTime, 0.035);
+      this.originalBgmGain.gain.setTargetAtTime(this.muted || this.testBgmActive ? 0 : ORIGINAL_BGM_VOLUME, this.audio.currentTime, 0.035);
     }
     if (!this.muted) {
       this.unlockAudio();
@@ -4705,7 +4710,7 @@ class CometRushScene extends Phaser.Scene {
 
     const audio = new AudioCtor();
     const master = audio.createGain();
-    master.gain.setValueAtTime(0.28, audio.currentTime);
+    master.gain.setValueAtTime(MASTER_VOLUME, audio.currentTime);
     master.connect(audio.destination);
     this.audio = audio;
     this.masterGain = master;
@@ -4722,7 +4727,7 @@ class CometRushScene extends Phaser.Scene {
       const source = window.location.pathname.endsWith('/play-direct.html') ? './public/ncs-test.mp3' : './ncs-test.mp3';
       this.testBgm = new Audio(source);
       this.testBgm.loop = true;
-      this.testBgm.volume = 0.86;
+      this.testBgm.volume = TEST_BGM_VOLUME;
     }
 
     void this.testBgm.play()
@@ -4747,7 +4752,7 @@ class CometRushScene extends Phaser.Scene {
     const gain = this.audio.createGain();
     source.buffer = this.createOriginalBgmBuffer();
     source.loop = true;
-    gain.gain.setValueAtTime(this.muted ? 0 : 0.36, this.audio.currentTime);
+    gain.gain.setValueAtTime(this.muted ? 0 : ORIGINAL_BGM_VOLUME, this.audio.currentTime);
     source.connect(gain);
     gain.connect(this.masterGain);
     source.start();
@@ -4785,29 +4790,30 @@ class CometRushScene extends Phaser.Scene {
       const kickT = t % beat;
       const snareT = t % (beat * 2);
       const hatT = t % (beat / 2);
-      const kick = barBeat === 0 || barBeat === 2 ? Math.sin(twoPi * (72 - kickT * 70) * kickT) * Math.exp(-kickT * 18) * 0.78 : 0;
+      const kick = barBeat === 0 || barBeat === 2 ? Math.sin(twoPi * (72 - kickT * 70) * kickT) * Math.exp(-kickT * 18) * 0.95 : 0;
       const snareSeed = Math.sin((i + step * 97) * 12.9898) * 43758.5453;
       const snareNoise = (snareSeed - Math.floor(snareSeed)) * 2 - 1;
-      const snare = barBeat === 1 || barBeat === 3 ? snareNoise * Math.exp(-snareT * 12) * 0.2 : 0;
+      const snare = barBeat === 1 || barBeat === 3 ? snareNoise * Math.exp(-snareT * 12) * 0.28 : 0;
       const hatSeed = Math.sin((i + 41) * 78.233) * 16317.912;
       const hatNoise = (hatSeed - Math.floor(hatSeed)) * 2 - 1;
-      const hat = hatNoise * Math.exp(-hatT * 52) * 0.055;
-      const bass = Math.sin(twoPi * bassFreq * t) * bassEnv * 0.22;
+      const hat = hatNoise * Math.exp(-hatT * 52) * 0.075;
+      const bass = Math.sin(twoPi * bassFreq * t) * bassEnv * 0.28;
       const leadPhase = (leadFreq * t) % 1;
       const leadWave = leadPhase < 0.5 ? 1 : -1;
-      const lead = leadWave * leadEnv * 0.075;
-      const sidechain = 0.72 + Math.min(0.28, kickT * 10);
-      data[i] = Phaser.Math.Clamp((kick + snare + hat + (bass + lead) * sidechain) * 0.72, -0.92, 0.92);
+      const lead = leadWave * leadEnv * 0.105;
+      const sidechain = 0.7 + Math.min(0.3, kickT * 10);
+      data[i] = Phaser.Math.Clamp((kick + snare + hat + (bass + lead) * sidechain) * 0.82, -0.92, 0.92);
     }
 
     return buffer;
   }
 
   private playKick(volume: number) {
-    if (this.audio == null || this.muted) {
+    if (this.audio == null || this.muted || !this.sfxEnabled) {
       return;
     }
 
+    const safeVolume = Math.min(0.22, volume * SFX_VOLUME_MULTIPLIER);
     const now = this.audio.currentTime;
     const oscillator = this.audio.createOscillator();
     const gain = this.audio.createGain();
@@ -4815,7 +4821,7 @@ class CometRushScene extends Phaser.Scene {
     oscillator.frequency.setValueAtTime(118, now);
     oscillator.frequency.exponentialRampToValueAtTime(44, now + 0.11);
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(volume, now + 0.006);
+    gain.gain.exponentialRampToValueAtTime(safeVolume, now + 0.006);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
     oscillator.connect(gain);
     gain.connect(this.masterGain ?? this.audio.destination);
@@ -4824,10 +4830,11 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private playNoiseBurst(volume: number, length: number, frequency: number, filterType: BiquadFilterType) {
-    if (this.audio == null || this.muted) {
+    if (this.audio == null || this.muted || !this.sfxEnabled) {
       return;
     }
 
+    const safeVolume = Math.min(0.24, volume * SFX_VOLUME_MULTIPLIER);
     const buffer = this.audio.createBuffer(1, Math.max(1, Math.floor(this.audio.sampleRate * length)), this.audio.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < data.length; i += 1) {
@@ -4840,7 +4847,7 @@ class CometRushScene extends Phaser.Scene {
     filter.type = filterType;
     filter.frequency.value = frequency;
     filter.Q.value = filterType === 'bandpass' ? 1.8 : 0.8;
-    gain.gain.setValueAtTime(volume, this.audio.currentTime);
+    gain.gain.setValueAtTime(safeVolume, this.audio.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, this.audio.currentTime + length);
     source.buffer = buffer;
     source.connect(filter);
@@ -4850,10 +4857,11 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private playTone(notes: number[], length: number, volume = 0.075, type: OscillatorType = 'triangle') {
-    if (this.audio == null || this.muted) {
+    if (this.audio == null || this.muted || !this.sfxEnabled) {
       return;
     }
 
+    const safeVolume = Math.min(0.22, volume * SFX_VOLUME_MULTIPLIER);
     const now = this.audio.currentTime;
     notes.forEach((note, index) => {
       const oscillator = this.audio?.createOscillator();
@@ -4866,7 +4874,7 @@ class CometRushScene extends Phaser.Scene {
       oscillator.type = type;
       oscillator.frequency.value = note;
       gain.gain.setValueAtTime(0.0001, now + index * length);
-      gain.gain.exponentialRampToValueAtTime(volume, now + index * length + 0.012);
+      gain.gain.exponentialRampToValueAtTime(safeVolume, now + index * length + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + index * length + length);
       oscillator.connect(gain);
       gain.connect(this.masterGain ?? this.audio.destination);
