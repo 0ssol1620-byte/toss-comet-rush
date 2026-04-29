@@ -34,7 +34,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v14-combo-nomute';
+const BUILD_VERSION = 'v14b-combo-nomute';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
@@ -3840,10 +3840,9 @@ class CometRushScene extends Phaser.Scene {
       ctx.lineWidth = 4;
       ctx.stroke();
       ctx.fillStyle = '#ffc857';
-      ctx.font = '900 18px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('₩', 75, 84);
+      ctx.beginPath();
+      ctx.arc(75, 84, 5, 0, Math.PI * 2);
+      ctx.fill();
 
       ctx.fillStyle = 'rgba(255,255,255,.72)';
       rounded(ctx, 61, 36, 28, 7, 4);
@@ -3906,11 +3905,10 @@ class CometRushScene extends Phaser.Scene {
       ctx.strokeStyle = 'rgba(7,19,31,.24)';
       rounded(ctx, -24, -12, 48, 24, 8);
       ctx.stroke();
-      ctx.fillStyle = '#07301f';
-      ctx.font = '900 20px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('₩', 0, 1);
+      ctx.fillStyle = 'rgba(7,48,31,.85)';
+      ctx.beginPath();
+      ctx.arc(0, 1, 7, 0, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,.7)';
       ctx.beginPath();
       ctx.arc(-22, -8, 4, 0, Math.PI * 2);
@@ -4103,10 +4101,9 @@ class CometRushScene extends Phaser.Scene {
       ctx.arc(0, 0, 20, 0, Math.PI * 2);
       ctx.stroke();
       ctx.fillStyle = '#5d2c07';
-      ctx.font = '900 23px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('₩', 0, 1);
+      ctx.beginPath();
+      ctx.arc(0, 1, 7, 0, Math.PI * 2);
+      ctx.fill();
     });
 
     makeSheet('boost', 82, 82, 6, (ctx, frame) => {
@@ -4260,10 +4257,9 @@ class CometRushScene extends Phaser.Scene {
       rounded(ctx, -54, -28, 108, 68, 22);
       ctx.fill();
       ctx.fillStyle = '#ffc857';
-      ctx.font = '900 54px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('₩', 0, 10);
+      ctx.beginPath();
+      ctx.arc(0, 10, 15, 0, Math.PI * 2);
+      ctx.fill();
     });
 
     make('nebula-a', 180, 180, (ctx) => {

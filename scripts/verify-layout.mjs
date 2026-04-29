@@ -166,7 +166,7 @@ assert(source.includes("this.renderPauseLayer();"), 'pause overlay is not implem
 assert(source.includes("this.showUpgradeChoice"), 'run upgrade choice is not implemented');
 assert(source.includes("meta_upgrade_buy"), 'meta progression analytics are not implemented');
 assert(source.includes("'rent' | 'tax' | 'sub'"), 'expanded financial hazard types are not implemented');
-assert(source.includes("BUILD_VERSION = 'v14-combo-nomute'"), 'source build stamp is not v14-combo-nomute');
+assert(source.includes("BUILD_VERSION = 'v14b-combo-nomute'"), 'source build stamp is not v14b-combo-nomute');
 assert(source.includes('MAX_FRAME_DELTA = 42'), 'frame delta clamp is not implemented');
 assert(source.includes('MAX_ACTORS = 38'), 'active actor cap is not implemented');
 assert(source.includes('MAX_DIFFICULTY = 4.85'), 'difficulty cap is not implemented');
@@ -202,7 +202,7 @@ for (const target of exportsToCheck) {
   }
 
   const html = await readFile(target, 'utf8');
-  assert(html.includes('v14-combo-nomute'), `export ${target} does not contain v14-combo-nomute stamp`);
+  assert(html.includes('v14b-combo-nomute'), `export ${target} does not contain v14b-combo-nomute stamp`);
   assert(html.includes('screen_onboarding'), `export ${target} does not contain onboarding screen analytics`);
   assert(html.includes('onboarding_complete'), `export ${target} does not contain onboarding completion analytics`);
   assert(html.includes('screen_growth'), `export ${target} does not contain growth screen analytics`);
