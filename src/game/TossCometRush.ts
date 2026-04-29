@@ -961,11 +961,7 @@ class CometRushScene extends Phaser.Scene {
     this.overdriveFill.setDepth(21);
     this.hudObjects.push(this.overdriveFill);
 
-    const soundButton = this.createHudButton(31, 106, 44, 44, '음', () => {
-      this.toggleMute();
-    });
-    this.muteHudLabel = soundButton.label;
-    this.hudObjects.push(soundButton.group);
+    this.muteHudLabel = undefined;
 
     const pauseButton = this.createHudButton(GAME_WIDTH - 31, 106, 44, 44, 'Ⅱ', () => {
       this.showPause();
@@ -3356,15 +3352,16 @@ class CometRushScene extends Phaser.Scene {
     this.overdriveFill.setFillStyle(this.feverMs > 0 ? PALETTE.gold : this.overdrive > 70 ? PALETTE.green : PALETTE.aqua, 0.96);
     this.dangerOverlay.setAlpha(this.hp <= 1 && this.phase === 'playing' ? 0.08 + Math.sin(now * 0.012) * 0.035 : 0);
 
-    if (this.phase === 'playing' && this.combo > 0 && this.comboGraceMs > 0) {
+    if (this.phase === 'playing' && this.combo > 0) {
       const liveLabel = this.combo >= 24 ? `FEVER ${this.combo} COMBO!!` : this.combo >= 8 ? `${this.combo} COMBO!` : `${this.combo} COMBO`;
       this.centerComboLiveText.setText(liveLabel);
       this.centerComboLiveText.setVisible(true);
       this.centerComboLiveText.setActive(true);
+      this.centerComboLiveText.setOrigin(0.5, 0.5);
       this.centerComboLiveText.setPosition(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 122);
-      this.centerComboLiveText.setDepth(89);
-      this.centerComboLiveText.setAlpha(0.95);
-      this.centerComboLiveText.setScale(1 + Math.min(0.22, this.combo * 0.006));
+      this.centerComboLiveText.setDepth(120);
+      this.centerComboLiveText.setAlpha(1);
+      this.centerComboLiveText.setScale(1.1 + Math.min(0.28, this.combo * 0.008));
       this.centerComboLiveText.setColor(this.combo >= 24 ? '#fff4d8' : this.combo >= 8 ? '#9defff' : '#66ffc2');
     } else {
       this.centerComboLiveText.setAlpha(0);
