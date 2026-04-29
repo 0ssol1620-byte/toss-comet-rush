@@ -38,7 +38,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v16-combo-reset-perf-text';
+const BUILD_VERSION = 'v16b-guide-layout';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
@@ -84,6 +84,7 @@ type MenuLayout = {
   titleY: number;
   titleSize: number;
   subtitleY: number;
+  legendY: number;
   bestY: number;
   missionY: number;
   ruleY: number;
@@ -1059,7 +1060,7 @@ class CometRushScene extends Phaser.Scene {
     });
     title.setOrigin(0.5);
 
-    const subtitle = this.add.text(GAME_WIDTH / 2, layout.subtitleY, '60초 동안 100,000원 이상 지키세요\n현금 획득 · 고지서 회피 · 아슬 회피로 각성', {
+    const subtitle = this.add.text(GAME_WIDTH / 2, layout.subtitleY, '60초 동안 100,000원 이상 지키세요\n먹고 · 피하고 · 스쳐서 FEVER 충전', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '13px',
@@ -1069,7 +1070,7 @@ class CometRushScene extends Phaser.Scene {
     });
     subtitle.setOrigin(0.5);
 
-    const legend = this.createMenuLegend(layout.bestY - 40, layout.compact);
+    const legend = this.createMenuLegend(layout.legendY, layout.compact);
 
     const bestPanel = this.add.rectangle(GAME_WIDTH / 2, layout.bestY, 258, 42, 0x0b2536, 0.84);
     bestPanel.setStrokeStyle(1, PALETTE.gold, 0.25);
@@ -1216,13 +1217,14 @@ class CometRushScene extends Phaser.Scene {
           heroScale: 0.48,
           titleY: 226,
           titleSize: 42,
-          subtitleY: 304,
-          bestY: 362,
-          missionY: 428,
-          ruleY: 486,
-          startY: 548,
-          secondaryY: 618,
-          footerY: 716,
+          subtitleY: 284,
+          legendY: 330,
+          bestY: 374,
+          missionY: 438,
+          ruleY: 494,
+          startY: 558,
+          secondaryY: 628,
+          footerY: 724,
         }
       : {
           compact,
@@ -1234,38 +1236,51 @@ class CometRushScene extends Phaser.Scene {
           heroScale: 0.62,
           titleY: 276,
           titleSize: 48,
-          subtitleY: 358,
-          bestY: 410,
-          missionY: 480,
-          ruleY: 535,
-          startY: 604,
-          secondaryY: 684,
-          footerY: 770,
+          subtitleY: 342,
+          legendY: 390,
+          bestY: 438,
+          missionY: 506,
+          ruleY: 562,
+          startY: 626,
+          secondaryY: 698,
+          footerY: 784,
         };
   }
 
   private createMenuLegend(y: number, compact: boolean) {
     const group = this.add.container(GAME_WIDTH / 2, y);
     const items = [
-      { icon: '💵', label: '현금 획득', color: PALETTE.green },
-      { icon: '💳', label: '고지서 회피', color: PALETTE.red },
-      { icon: '⚡', label: '아슬 회피', color: PALETTE.gold },
+      { icon: '💵', labelTop: '현금', labelBottom: '획득', color: PALETTE.green },
+      { icon: '💳', labelTop: '고지서', labelBottom: '회피', color: PALETTE.red },
+      { icon: '⚡', labelTop: '아슬', labelBottom: '회피', color: PALETTE.gold },
     ];
+    const spacing = compact ? 106 : 110;
+    const cardWidth = compact ? 98 : 102;
+    const cardHeight = 52;
 
     items.forEach((item, index) => {
-      const x = (index - 1) * (compact ? 94 : 102);
-      const bg = this.add.rectangle(x, 0, compact ? 88 : 96, 38, 0x041522, 0.78);
+      const x = (index - 1) * spacing;
+      const bg = this.add.rectangle(x, 0, cardWidth, cardHeight, 0x041522, 0.78);
       bg.setStrokeStyle(1, item.color, 0.34);
-      const text = this.add.text(x, 0, `${item.icon} ${item.label}`, {
+      const icon = this.add.text(x, -13, item.icon, {
+        align: 'center',
+        fontFamily: 'Pretendard, Apple Color Emoji, sans-serif',
+        fontSize: compact ? '14px' : '15px',
+        fontStyle: '900',
+        color: '#f8fbff',
+      });
+      icon.setOrigin(0.5);
+      const label = this.add.text(x, 12, `${item.labelTop}\n${item.labelBottom}`, {
         align: 'center',
         fontFamily: 'Pretendard, sans-serif',
         fontSize: compact ? '10px' : '11px',
         fontStyle: '900',
+        lineSpacing: -2,
         color: '#f8fbff',
+        wordWrap: { width: cardWidth - 12, useAdvancedWrap: false },
       });
-      text.setOrigin(0.5);
-      this.fitText(text, compact ? 80 : 88, 8);
-      group.add([bg, text]);
+      label.setOrigin(0.5);
+      group.add([bg, icon, label]);
     });
 
     return group;
@@ -1899,6 +1914,33 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private handleOnboardingPointer(kind: 'down' | 'move', pointer: Phaser.Input.Pointer) {
+    if (kind === 'down') {
+      if (this.onboardingStep >= 7 && this.isPointInRect(pointer.x, pointer.y, GAME_WIDTH / 2, 650, 282, 76)) {
+        this.completeOnboarding();
+        return;
+      }
+
+      if (this.isPointInRect(pointer.x, pointer.y, GAME_WIDTH / 2, 784, 210, 76)) {
+        this.completeOnboarding();
+        return;
+      }
+
+      if (this.onboardingStep === 1 && this.isPointInRect(pointer.x, pointer.y, GAME_WIDTH / 2, 720, 260, 74)) {
+        this.advanceOnboarding(120);
+        return;
+      }
+
+      if (this.onboardingStep === 6) {
+        const tappedUpgradeCard = [358, 494, 630].some((cardY) => this.isPointInRect(pointer.x, pointer.y, GAME_WIDTH / 2, cardY, 326, 116));
+        if (tappedUpgradeCard) {
+          this.haptic('success');
+          this.popText(GAME_WIDTH / 2, Math.max(274, pointer.y - 48), '업그레이드 선택', '#66ffc2');
+          this.advanceOnboarding(220);
+          return;
+        }
+      }
+    }
+
     if (this.onboardingStep !== 0 || pointer.y < 398 || pointer.y > 738) {
       return;
     }
@@ -1918,6 +1960,10 @@ class CometRushScene extends Phaser.Scene {
         this.advanceOnboarding(220);
       }
     }
+  }
+
+  private isPointInRect(x: number, y: number, centerX: number, centerY: number, width: number, height: number) {
+    return x >= centerX - width / 2 && x <= centerX + width / 2 && y >= centerY - height / 2 && y <= centerY + height / 2;
   }
 
   private advanceOnboarding(delayMs = 180) {
