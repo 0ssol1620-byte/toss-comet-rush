@@ -7,6 +7,41 @@ export type DailyMissionStats = {
   maxCombo: number;
 };
 
+export type VisualQuality = 'auto' | 'low' | 'medium' | 'high';
+
+export type PerformanceProfile = {
+  quality: Exclude<VisualQuality, 'auto'>;
+  starCount: number;
+  speedLineCount: number;
+  nebulaCount: number;
+  particleMultiplier: number;
+  maxPopupsPerSecond: number;
+};
+
+export type StreakState = {
+  lastLoginDate: string;
+  current: number;
+  best: number;
+  rewardClaimedDate?: string;
+};
+
+export type RunSummary = {
+  score: number;
+  nearMiss: number;
+  maxCombo: number;
+  stageCleared: boolean;
+  noHit: boolean;
+};
+
+export type WeeklyStats = {
+  score: number;
+  nearMiss: number;
+  fever: number;
+  plays: number;
+};
+
+export type RareEventId = 'goldenSalary' | 'taxRefundRush' | 'bonusTime' | undefined;
+
 export const DAILY_MISSION_TARGETS = {
   shards: 90,
   nearMiss: 12,
@@ -122,4 +157,91 @@ export function firstRunAssistProfile(plays: number, elapsedSeconds: number) {
     guaranteeMagnet: firstRun && elapsedSeconds >= 12 && elapsedSeconds <= 15,
     minCredits: firstRun ? 100 : 0,
   };
+}
+
+export function resolvePerformanceProfile(input: {
+  deviceMemory?: number;
+  hardwareConcurrency?: number;
+  saveQuality?: VisualQuality;
+}): PerformanceProfile {
+  const forced = input.saveQuality !== 'auto' ? input.saveQuality : undefined;
+  const weakDevice = (input.deviceMemory != null && input.deviceMemory <= 2) || (input.hardwareConcurrency != null && input.hardwareConcurrency <= 3);
+  const quality = forced ?? (weakDevice ? 'low' : input.deviceMemory != null && input.deviceMemory >= 6 && (input.hardwareConcurrency ?? 4) >= 6 ? 'high' : 'medium');
+
+  if (quality === 'low') {
+    return { quality, starCount: 56, speedLineCount: 8, nebulaCount: 2, particleMultiplier: 0.45, maxPopupsPerSecond: 8 };
+  }
+
+  if (quality === 'medium') {
+    return { quality, starCount: 88, speedLineCount: 12, nebulaCount: 3, particleMultiplier: 0.7, maxPopupsPerSecond: 12 };
+  }
+
+  return { quality, starCount: 128, speedLineCount: 18, nebulaCount: 5, particleMultiplier: 1, maxPopupsPerSecond: 18 };
+}
+
+function toUtcDay(date: string) {
+  const parsed = Date.parse(`${date}T00:00:00.000Z`);
+  return Number.isFinite(parsed) ? Math.floor(parsed / 86400000) : 0;
+}
+
+export function updateStreakState(previous: StreakState, today: string): StreakState {
+  if (previous.lastLoginDate === today) {
+    return { ...previous, best: Math.max(previous.best, previous.current) };
+  }
+
+  const yesterday = toUtcDay(today) - toUtcDay(previous.lastLoginDate) === 1;
+  const current = yesterday ? Math.max(0, previous.current) + 1 : 1;
+  return {
+    lastLoginDate: today,
+    current,
+    best: Math.max(previous.best, current),
+    rewardClaimedDate: '',
+  };
+}
+
+export function achievementProgress(run: RunSummary) {
+  return [
+    { id: 'first-50k', title: '첫 월급 방어', unlocked: run.score >= 50000, reward: 120 },
+    { id: 'near-master', title: '아슬회피 장인', unlocked: run.nearMiss >= 12, reward: 140 },
+    { id: 'combo-36', title: '콤보 루틴 완성', unlocked: run.maxCombo >= 36, reward: 140 },
+    { id: 'stage-clear', title: '스테이지 돌파', unlocked: run.stageCleared, reward: 180 },
+    { id: 'no-hit', title: '무피격 칼퇴', unlocked: run.noHit && run.stageCleared, reward: 220 },
+  ];
+}
+
+export function streakLoginReward(streak: StreakState) {
+  if (streak.rewardClaimedDate === streak.lastLoginDate) {
+    return 0;
+  }
+  if (streak.current >= 7) {
+    return 500;
+  }
+  if (streak.current >= 3) {
+    return 250;
+  }
+  return 100;
+}
+
+export function weeklyMissionProgress(week: WeeklyStats) {
+  const goals = [
+    { id: 'weekly-score', label: '주간 잔고 50만', done: week.score >= 500000 },
+    { id: 'weekly-near', label: '아슬회피 45회', done: week.nearMiss >= 45 },
+    { id: 'weekly-fever', label: '월급각성 9회', done: week.fever >= 9 },
+    { id: 'weekly-plays', label: '7판 방어', done: week.plays >= 7 },
+  ];
+  const completed = goals.filter((goal) => goal.done).length;
+  return { goals, completed, total: goals.length, complete: completed === goals.length, reward: 900 };
+}
+
+export function rareEventForRun(input: { plays: number; elapsedSeconds: number; score: number; feverCount: number }): RareEventId {
+  if (input.elapsedSeconds >= 16 && input.elapsedSeconds <= 24 && input.score >= 60000 && input.plays % 3 === 0) {
+    return 'goldenSalary';
+  }
+  if (input.elapsedSeconds >= 48 && input.score >= 25000 && input.feverCount === 0) {
+    return 'taxRefundRush';
+  }
+  if (input.elapsedSeconds >= 36 && input.score >= 120000 && input.feverCount >= 2) {
+    return 'bonusTime';
+  }
+  return undefined;
 }

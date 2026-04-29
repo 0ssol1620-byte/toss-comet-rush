@@ -15,7 +15,19 @@ const out = join(mkdtempSync(join(tmpdir(), 'comet-progression-')), 'progression
 writeFileSync(out, code);
 const progression = await import(pathToFileURL(out));
 
-const { buildRetryHook, missionProgress, missionRewardState, evolutionHint, firstRunAssistProfile } = progression;
+const {
+  buildRetryHook,
+  missionProgress,
+  missionRewardState,
+  evolutionHint,
+  firstRunAssistProfile,
+  resolvePerformanceProfile,
+  streakLoginReward,
+  updateStreakState,
+  achievementProgress,
+  weeklyMissionProgress,
+  rareEventForRun,
+} = progression;
 
 assert.equal(
   buildRetryHook({
@@ -60,5 +72,32 @@ assert.equal(evolutionHint('payday', { magnet: 0, rebate: 0, overtime: 0, shield
 assert.equal(firstRunAssistProfile(0, 4).hazardMultiplier, 0.6);
 assert.equal(firstRunAssistProfile(0, 13).guaranteeMagnet, true);
 assert.equal(firstRunAssistProfile(1, 4).hazardMultiplier, 1);
+
+assert.deepEqual(resolvePerformanceProfile({ deviceMemory: 1, hardwareConcurrency: 2, saveQuality: 'auto' }), {
+  quality: 'low',
+  starCount: 56,
+  speedLineCount: 8,
+  nebulaCount: 2,
+  particleMultiplier: 0.45,
+  maxPopupsPerSecond: 8,
+});
+assert.equal(resolvePerformanceProfile({ deviceMemory: 8, hardwareConcurrency: 8, saveQuality: 'high' }).starCount, 128);
+assert.equal(updateStreakState({ lastLoginDate: '', current: 0, best: 0 }, '2026-04-29').current, 1);
+assert.deepEqual(updateStreakState({ lastLoginDate: '2026-04-28', current: 2, best: 2 }, '2026-04-29'), {
+  lastLoginDate: '2026-04-29',
+  current: 3,
+  best: 3,
+  rewardClaimedDate: '',
+});
+assert.equal(updateStreakState({ lastLoginDate: '2026-04-27', current: 4, best: 5 }, '2026-04-29').current, 1);
+assert.equal(achievementProgress({ score: 120000, nearMiss: 14, maxCombo: 42, stageCleared: true, noHit: true }).filter((a) => a.unlocked).length, 5);
+assert.equal(weeklyMissionProgress({ score: 500000, nearMiss: 6, fever: 2, plays: 1 }).completed, 1);
+assert.equal(weeklyMissionProgress({ score: 500000, nearMiss: 45, fever: 9, plays: 7 }).complete, true);
+assert.equal(rareEventForRun({ plays: 3, elapsedSeconds: 18, score: 65000, feverCount: 1 }), 'goldenSalary');
+assert.equal(rareEventForRun({ plays: 2, elapsedSeconds: 50, score: 30000, feverCount: 0 }), 'taxRefundRush');
+
+assert.equal(streakLoginReward({ lastLoginDate: '2026-04-29', current: 1, best: 1 }), 100);
+assert.equal(streakLoginReward({ lastLoginDate: '2026-04-29', current: 7, best: 7 }), 500);
+assert.equal(streakLoginReward({ lastLoginDate: '2026-04-29', current: 7, best: 7, rewardClaimedDate: '2026-04-29' }), 0);
 
 console.log('progression tests passed');

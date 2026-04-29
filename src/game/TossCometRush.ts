@@ -2,11 +2,19 @@ import * as Phaser from 'phaser';
 import type { TossBridge } from '../lib/tossBridge';
 import {
   DAILY_MISSION_REWARD,
+  achievementProgress,
   buildRetryHook,
   evolutionHint,
   firstRunAssistProfile,
   missionProgress,
   missionRewardState,
+  rareEventForRun,
+  resolvePerformanceProfile,
+  streakLoginReward,
+  updateStreakState,
+  weeklyMissionProgress,
+  type PerformanceProfile,
+  type VisualQuality,
 } from './progression';
 
 const GAME_WIDTH = 390;
@@ -104,6 +112,22 @@ type SaveState = {
     revive: number;
     doubleReward: number;
     headStart: number;
+  };
+  visualQuality: VisualQuality;
+  achievements: Record<string, boolean>;
+  streak: {
+    lastLoginDate: string;
+    current: number;
+    best: number;
+    rewardClaimedDate: string;
+  };
+  weekly: {
+    weekKey: string;
+    score: number;
+    nearMiss: number;
+    fever: number;
+    plays: number;
+    rewardClaimedWeek: string;
   };
   meta: Record<MetaUpgradeKey, number>;
 };
@@ -238,6 +262,10 @@ const DEFAULT_SAVE: SaveState = {
   dailyRewardClaimedDate: '',
   audio: { musicEnabled: true, sfxEnabled: true, hapticEnabled: true },
   adUses: { date: '', revive: 0, doubleReward: 0, headStart: 0 },
+  visualQuality: 'auto',
+  achievements: {},
+  streak: { lastLoginDate: '', current: 0, best: 0, rewardClaimedDate: '' },
+  weekly: { weekKey: '', score: 0, nearMiss: 0, fever: 0, plays: 0, rewardClaimedWeek: '' },
   meta: {
     vault: 0,
     magnet: 0,
@@ -357,6 +385,15 @@ class CometRushScene extends Phaser.Scene {
   private sfxEnabled = true;
   private hapticEnabled = true;
   private pausedForBackground = false;
+  private performanceProfile: PerformanceProfile = resolvePerformanceProfile({ saveQuality: 'auto' });
+  private hudSnapshot = '';
+  private hudLastUpdateMs = 0;
+  private effectWindowStartedAt = 0;
+  private effectCountInWindow = 0;
+  private popTextPool: Phaser.GameObjects.Text[] = [];
+  private sparkPool: Array<Phaser.GameObjects.Image | Phaser.GameObjects.Arc> = [];
+  private rareEventTriggered?: string;
+  private noHitRun = true;
   private resultPreviousBest = 0;
   private roundStartPlays = 0;
   private firstRunMagnetGranted = false;
@@ -406,6 +443,7 @@ class CometRushScene extends Phaser.Scene {
 
   create() {
     this.save = this.loadSave();
+    this.performanceProfile = this.detectPerformanceProfile();
     this.musicEnabled = this.save.audio.musicEnabled;
     this.sfxEnabled = this.save.audio.sfxEnabled;
     this.hapticEnabled = this.save.audio.hapticEnabled;
@@ -451,6 +489,7 @@ class CometRushScene extends Phaser.Scene {
     this.updateActors(frameDelta);
     this.maybeAnnounceAlertTier();
     this.updateCombo(frameDelta);
+    this.maybeTriggerRareEvent();
     this.updateHud();
 
     if (this.timeLeft <= 0) {
@@ -541,7 +580,7 @@ class CometRushScene extends Phaser.Scene {
     this.stageBackdrop.setDepth(0.1);
     this.renderStageBackdrop();
 
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < this.performanceProfile.nebulaCount; i += 1) {
       const nebula = this.add.image(
         Phaser.Math.Between(30, GAME_WIDTH - 30),
         Phaser.Math.Between(80, GAME_HEIGHT - 120),
@@ -554,7 +593,7 @@ class CometRushScene extends Phaser.Scene {
       this.nebulae.push(nebula);
     }
 
-    for (let i = 0; i < 128; i += 1) {
+    for (let i = 0; i < this.performanceProfile.starCount; i += 1) {
       const star = this.add.ellipse(
         Phaser.Math.Between(6, GAME_WIDTH - 6),
         Phaser.Math.Between(0, GAME_HEIGHT),
@@ -567,7 +606,7 @@ class CometRushScene extends Phaser.Scene {
       this.stars.push(star);
     }
 
-    for (let i = 0; i < 18; i += 1) {
+    for (let i = 0; i < this.performanceProfile.speedLineCount; i += 1) {
       const line = this.add.rectangle(
         Phaser.Math.Between(20, GAME_WIDTH - 20),
         Phaser.Math.Between(-GAME_HEIGHT, GAME_HEIGHT),
@@ -811,6 +850,8 @@ class CometRushScene extends Phaser.Scene {
 
     const layout = this.menuLayout();
     const stage = this.currentStage();
+    const weekly = weeklyMissionProgress(this.save.weekly);
+    const unlockedAchievementCount = Object.values(this.save.achievements).filter(Boolean).length;
     const panel = this.add.container(0, 0);
     const glass = this.add.rectangle(GAME_WIDTH / 2, layout.glassY, 342, layout.glassHeight, 0x06131f, 0.64);
     glass.setStrokeStyle(1, PALETTE.aqua, 0.28);
@@ -874,7 +915,11 @@ class CometRushScene extends Phaser.Scene {
 
     const missionPanel = this.add.rectangle(GAME_WIDTH / 2, layout.missionY, 304, 74, 0x041522, 0.66);
     missionPanel.setStrokeStyle(1, PALETTE.aqua, 0.16);
-    const mission = this.add.text(GAME_WIDTH / 2, layout.missionY, this.stageMenuLabel(), {
+    const mission = this.add.text(
+      GAME_WIDTH / 2,
+      layout.missionY,
+      `${this.stageMenuLabel()}\n🔥 연속 ${this.save.streak.current}일 · 주간 ${weekly.completed}/${weekly.total} · 업적 ${unlockedAchievementCount}/5 · 품질 ${this.performanceProfile.quality}`,
+      {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '12px',
@@ -1788,6 +1833,12 @@ class CometRushScene extends Phaser.Scene {
     this.resultPreviousBest = this.save.best;
     this.roundStartPlays = this.save.plays;
     this.firstRunMagnetGranted = false;
+    this.rareEventTriggered = undefined;
+    this.noHitRun = true;
+    this.hudSnapshot = '';
+    this.hudLastUpdateMs = 0;
+    this.effectWindowStartedAt = 0;
+    this.effectCountInWindow = 0;
     this.resultStageIndex = this.save.selectedStage;
     this.resultStageCleared = false;
     this.resultUnlockedStage = false;
@@ -2148,6 +2199,17 @@ class CometRushScene extends Phaser.Scene {
     this.save.daily.nearMiss += this.nearMiss;
     this.save.daily.fever += this.feverCount;
     this.save.daily.maxCombo = Math.max(this.save.daily.maxCombo, this.maxCombo);
+    this.save.weekly.score += this.score;
+    this.save.weekly.nearMiss += this.nearMiss;
+    this.save.weekly.fever += this.feverCount;
+    this.save.weekly.plays += 1;
+    const unlockedAchievements = this.claimRunAchievements();
+    if (unlockedAchievements.length > 0) {
+      const achievementCredits = unlockedAchievements.reduce((sum, achievement) => sum + achievement.reward, 0);
+      this.save.credits += achievementCredits;
+      this.resultCredits += achievementCredits;
+      this.bridge.log('achievement_unlock', { ids: unlockedAchievements.map((achievement) => achievement.id).join(','), reward: achievementCredits }, 'event');
+    }
     this.persistSave();
 
     void this.bridge.submitScore(this.score).then((status) => {
@@ -2257,7 +2319,7 @@ class CometRushScene extends Phaser.Scene {
     credit.setOrigin(0.5);
     this.fitText(credit, 292, 11);
 
-    const mission = this.add.text(GAME_WIDTH / 2, 535, this.dailyMissionLabel(), {
+    const mission = this.add.text(GAME_WIDTH / 2, 535, `${this.dailyMissionLabel()}\n주간 ${weeklyMissionProgress(this.save.weekly).completed}/4 · 업적 ${Object.values(this.save.achievements).filter(Boolean).length}/5 · 연속 ${this.save.streak.current}일`, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '12px',
@@ -2487,6 +2549,49 @@ class CometRushScene extends Phaser.Scene {
     }
 
     void delta;
+  }
+
+  private maybeTriggerRareEvent() {
+    if (this.rareEventTriggered != null) {
+      return;
+    }
+
+    const elapsedSeconds = ROUND_SECONDS - this.timeLeft;
+    const event = rareEventForRun({
+      plays: this.save.plays + 1,
+      elapsedSeconds,
+      score: this.score,
+      feverCount: this.feverCount,
+    });
+
+    if (event == null) {
+      return;
+    }
+
+    this.rareEventTriggered = event;
+    if (event === 'goldenSalary') {
+      this.score += 2500;
+      this.feverMs = Math.max(this.feverMs, 2600);
+      this.spawnActor('coin', this.player.x);
+      this.spawnActor('boost', Phaser.Math.Clamp(this.player.x + 44, 34, GAME_WIDTH - 34));
+      this.popText(GAME_WIDTH / 2, 256, '황금 월급 입금!', '#ffc857');
+      this.burst(this.player.x, this.player.y - 70, PALETTE.gold, 18);
+    } else if (event === 'taxRefundRush') {
+      this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 4);
+      this.freezeHazards();
+      this.spawnActor('magnetItem', this.player.x);
+      this.popText(GAME_WIDTH / 2, 256, '세금 환급 폭주!', '#66ffc2');
+      this.burst(this.player.x, this.player.y - 70, PALETTE.green, 16);
+    } else {
+      this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 5);
+      this.score += 1600;
+      this.spawnActor('boost', this.player.x);
+      this.popText(GAME_WIDTH / 2, 256, '보너스 타임!', '#9defff');
+      this.burst(this.player.x, this.player.y - 70, PALETTE.sky, 16);
+    }
+    this.playTone([523, 659, 784, 1046], 0.05);
+    this.bridge.haptic('confetti');
+    this.bridge.log('rare_event', { event, score: this.score, elapsedSeconds: Math.round(elapsedSeconds) }, 'event');
   }
 
   private spawnActor(kind: ActorKind, forcedX?: number) {
@@ -2780,6 +2885,7 @@ class CometRushScene extends Phaser.Scene {
     }
 
     this.hp -= 1;
+    this.noHitRun = false;
     this.combo = 0;
     this.nearChain = 0;
     this.comboGraceMs = 1650;
@@ -2897,12 +3003,38 @@ class CometRushScene extends Phaser.Scene {
     return undefined;
   }
 
-  private updateHud() {
+  private updateHud(force = false) {
+    const now = this.time.now;
+    const powerStatus = this.powerStatusLabel();
+    const feverSeconds = this.feverMs > 0 ? (this.feverMs / 1000).toFixed(1) : '';
+    const powerSeconds = powerStatus ?? '';
+    const timerBucket = Math.ceil(this.timeLeft * 5) / 5;
+    const snapshot = [
+      this.score,
+      timerBucket.toFixed(1),
+      this.combo,
+      this.hp,
+      this.maxHp(),
+      this.upgrades.shield,
+      Math.round(this.overdrive),
+      feverSeconds,
+      powerSeconds,
+      this.nearChain,
+      this.phase,
+    ].join('|');
+
+    if (!force && snapshot === this.hudSnapshot && now - this.hudLastUpdateMs < 120) {
+      this.dangerOverlay.setAlpha(this.hp <= 1 && this.phase === 'playing' ? 0.08 + Math.sin(now * 0.012) * 0.035 : 0);
+      return;
+    }
+
+    this.hudSnapshot = snapshot;
+    this.hudLastUpdateMs = now;
     this.scoreText.setFontSize(25);
     this.scoreText.setText(this.score.toLocaleString('ko-KR'));
     this.fitText(this.scoreText, 132, 16);
     this.timerText.setFontSize(24);
-    this.timerText.setText(this.timeLeft.toFixed(1));
+    this.timerText.setText(timerBucket.toFixed(1));
     this.fitText(this.timerText, 76, 16);
     this.timerText.setColor(this.timeLeft < 8 ? '#ff5f9f' : '#ffc857');
     const maxHp = this.maxHp();
@@ -2911,11 +3043,10 @@ class CometRushScene extends Phaser.Scene {
     this.comboText.setText(`콤보 ${this.combo} · 체력 ${'◆'.repeat(Math.max(0, this.hp))}${'◇'.repeat(Math.max(0, maxHp - this.hp))}${shield}`);
     this.fitText(this.comboText, 245, 9);
 
-    const fever = this.feverMs > 0 ? ` · 각성 ${(this.feverMs / 1000).toFixed(1)}s` : '';
+    const fever = this.feverMs > 0 ? ` · 각성 ${feverSeconds}s` : '';
     this.missionText.setFontSize(12);
-      this.missionText.setText(`${this.stageHudLabel()}${fever}`);
-      this.fitText(this.missionText, 258, 9);
-    const powerStatus = this.powerStatusLabel();
+    this.missionText.setText(`${this.stageHudLabel()}${fever}`);
+    this.fitText(this.missionText, 258, 9);
     const status =
       powerStatus ??
       this.feverMs > 0
@@ -2936,7 +3067,7 @@ class CometRushScene extends Phaser.Scene {
     this.statusText.setColor(powerStatus != null || this.feverMs > 0 || this.overdrive > 70 ? '#ffc857' : '#78cfe7');
     this.overdriveFill.width = (212 * (this.feverMs > 0 ? 1 : this.overdrive)) / 100;
     this.overdriveFill.setFillStyle(this.feverMs > 0 ? PALETTE.gold : this.overdrive > 70 ? PALETTE.green : PALETTE.aqua, 0.96);
-    this.dangerOverlay.setAlpha(this.hp <= 1 && this.phase === 'playing' ? 0.08 + Math.sin(this.time.now * 0.012) * 0.035 : 0);
+    this.dangerOverlay.setAlpha(this.hp <= 1 && this.phase === 'playing' ? 0.08 + Math.sin(now * 0.012) * 0.035 : 0);
   }
 
   private updateStars(delta: number) {
@@ -2972,14 +3103,59 @@ class CometRushScene extends Phaser.Scene {
     }
   }
 
+  private canEmitEffect(cost = 1) {
+    const now = this.time.now;
+    if (now - this.effectWindowStartedAt >= 1000) {
+      this.effectWindowStartedAt = now;
+      this.effectCountInWindow = 0;
+    }
+    if (this.effectCountInWindow + cost > this.performanceProfile.maxPopupsPerSecond) {
+      return false;
+    }
+    this.effectCountInWindow += cost;
+    return true;
+  }
+
+  private acquireSpark(x: number, y: number, color: number, image: boolean) {
+    const pooled = this.sparkPool.pop();
+    const dot = pooled ?? (image ? this.add.image(x, y, 'spark') : this.add.circle(x, y, 3, color, 0.86));
+    dot.setPosition(x, y);
+    dot.setAlpha(1);
+    dot.setVisible(true);
+    dot.setActive(true);
+    dot.setDepth(16);
+    dot.setBlendMode(Phaser.BlendModes.ADD);
+    if (dot instanceof Phaser.GameObjects.Image) {
+      dot.setTexture('spark');
+      dot.setTint(color);
+      dot.setScale(Phaser.Math.FloatBetween(0.25, 0.58));
+    } else {
+      dot.setFillStyle(color, Phaser.Math.FloatBetween(0.62, 0.95));
+      dot.setRadius(Phaser.Math.FloatBetween(2, 4.8));
+      dot.setScale(1);
+    }
+    return dot;
+  }
+
+  private releaseSpark(dot: Phaser.GameObjects.Image | Phaser.GameObjects.Arc) {
+    dot.setVisible(false);
+    dot.setActive(false);
+    dot.setAlpha(0);
+    if (this.sparkPool.length < 80) {
+      this.sparkPool.push(dot);
+    } else {
+      dot.destroy();
+    }
+  }
+
   private burst(x: number, y: number, color: number, count: number) {
-    for (let i = 0; i < count; i += 1) {
-      const dot =
-        i % 3 === 0
-          ? this.add.image(x, y, 'spark').setScale(Phaser.Math.FloatBetween(0.25, 0.58)).setTint(color)
-          : this.add.circle(x, y, Phaser.Math.FloatBetween(2, 4.8), color, Phaser.Math.FloatBetween(0.62, 0.95));
-      dot.setDepth(16);
-      dot.setBlendMode(Phaser.BlendModes.ADD);
+    if (!this.canEmitEffect(1)) {
+      return;
+    }
+
+    const resolvedCount = Math.max(1, Math.round(count * this.performanceProfile.particleMultiplier));
+    for (let i = 0; i < resolvedCount; i += 1) {
+      const dot = this.acquireSpark(x, y, color, i % 3 === 0);
       this.tweens.add({
         targets: dot,
         x: x + Phaser.Math.Between(-68, 68),
@@ -2987,21 +3163,32 @@ class CometRushScene extends Phaser.Scene {
         rotation: Phaser.Math.FloatBetween(-3.4, 3.4),
         alpha: 0,
         scale: 0.2,
-        duration: Phaser.Math.Between(340, 680),
+        duration: Phaser.Math.Between(300, 620),
         ease: 'Cubic.easeOut',
-        onComplete: () => dot.destroy(),
+        onComplete: () => this.releaseSpark(dot),
       });
     }
   }
 
   private popText(x: number, y: number, label: string, color = '#f8fbff') {
-    const text = this.add.text(x, y, label, {
+    if (!this.canEmitEffect(1)) {
+      return;
+    }
+
+    const text = this.popTextPool.pop() ?? this.add.text(0, 0, '', {
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '16px',
       fontStyle: '900',
       color,
       shadow: { color: '#001622', blur: 8, fill: true },
     });
+    text.setPosition(x, y);
+    text.setText(label);
+    text.setColor(color);
+    text.setAlpha(1);
+    text.setVisible(true);
+    text.setActive(true);
+    text.setScale(1);
     text.setOrigin(0.5);
     text.setDepth(this.growthLayer != null || this.upgradeLayer != null || this.pauseLayer != null ? 60 : 18);
     this.tweens.add({
@@ -3010,7 +3197,15 @@ class CometRushScene extends Phaser.Scene {
       alpha: 0,
       duration: 620,
       ease: 'Cubic.easeOut',
-      onComplete: () => text.destroy(),
+      onComplete: () => {
+        text.setVisible(false);
+        text.setActive(false);
+        if (this.popTextPool.length < 24) {
+          this.popTextPool.push(text);
+        } else {
+          text.destroy();
+        }
+      },
     });
   }
 
@@ -3792,12 +3987,34 @@ class CometRushScene extends Phaser.Scene {
     loop('salary-boost', 'boosterItem', 5, 10);
   }
 
+  private detectPerformanceProfile() {
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    return resolvePerformanceProfile({
+      deviceMemory: nav.deviceMemory,
+      hardwareConcurrency: navigator.hardwareConcurrency,
+      saveQuality: this.save.visualQuality,
+    });
+  }
+
+  private weekKey(date: string) {
+    const stamp = Date.parse(`${date}T00:00:00.000Z`);
+    const day = Number.isFinite(stamp) ? new Date(stamp) : new Date();
+    const first = Date.UTC(day.getUTCFullYear(), 0, 1);
+    const week = Math.ceil(((day.getTime() - first) / 86400000 + new Date(first).getUTCDay() + 1) / 7);
+    return `${day.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+  }
+
   private loadSave(): SaveState {
     const today = new Date().toISOString().slice(0, 10);
     let parsed: SaveState = {
       ...DEFAULT_SAVE,
       bestByStage: [...DEFAULT_SAVE.bestByStage],
       daily: { ...DEFAULT_SAVE.daily },
+      audio: { ...DEFAULT_SAVE.audio },
+      adUses: { ...DEFAULT_SAVE.adUses },
+      achievements: { ...DEFAULT_SAVE.achievements },
+      streak: { ...DEFAULT_SAVE.streak },
+      weekly: { ...DEFAULT_SAVE.weekly },
       meta: { ...DEFAULT_SAVE.meta },
     };
 
@@ -3810,6 +4027,12 @@ class CometRushScene extends Phaser.Scene {
           ...saved,
           bestByStage: STAGES.map((_, index) => Math.max(0, saved.bestByStage?.[index] ?? 0)),
           daily: { ...DEFAULT_SAVE.daily, ...saved.daily },
+          audio: { ...DEFAULT_SAVE.audio, ...saved.audio },
+          adUses: { ...DEFAULT_SAVE.adUses, ...saved.adUses },
+          visualQuality: saved.visualQuality ?? DEFAULT_SAVE.visualQuality,
+          achievements: { ...DEFAULT_SAVE.achievements, ...saved.achievements },
+          streak: { ...DEFAULT_SAVE.streak, ...saved.streak },
+          weekly: { ...DEFAULT_SAVE.weekly, ...saved.weekly },
           meta: { ...DEFAULT_SAVE.meta, ...saved.meta },
         };
       }
@@ -3818,6 +4041,11 @@ class CometRushScene extends Phaser.Scene {
         ...DEFAULT_SAVE,
         bestByStage: [...DEFAULT_SAVE.bestByStage],
         daily: { ...DEFAULT_SAVE.daily },
+        audio: { ...DEFAULT_SAVE.audio },
+        adUses: { ...DEFAULT_SAVE.adUses },
+        achievements: { ...DEFAULT_SAVE.achievements },
+        streak: { ...DEFAULT_SAVE.streak },
+        weekly: { ...DEFAULT_SAVE.weekly },
         meta: { ...DEFAULT_SAVE.meta },
       };
     }
@@ -3827,10 +4055,22 @@ class CometRushScene extends Phaser.Scene {
       parsed.daily = { ...DEFAULT_SAVE.daily };
     }
 
+    parsed.streak = updateStreakState(parsed.streak ?? DEFAULT_SAVE.streak, today) as SaveState['streak'];
+    const loginReward = streakLoginReward(parsed.streak);
+    if (loginReward > 0) {
+      parsed.credits += loginReward;
+      parsed.streak.rewardClaimedDate = today;
+    }
+    const weekKey = this.weekKey(today);
+    if (parsed.weekly.weekKey !== weekKey) {
+      parsed.weekly = { ...DEFAULT_SAVE.weekly, weekKey };
+    }
+
     parsed.unlockedStage = Phaser.Math.Clamp(Math.floor(parsed.unlockedStage ?? 0), 0, STAGES.length - 1);
     parsed.selectedStage = Phaser.Math.Clamp(Math.floor(parsed.selectedStage ?? 0), 0, parsed.unlockedStage);
     parsed.bestAlertTier = Math.max(0, Math.floor(parsed.bestAlertTier ?? 0));
     parsed.bestByStage = STAGES.map((_, index) => Math.max(0, parsed.bestByStage?.[index] ?? 0));
+    window.localStorage.setItem(SAVE_KEY, JSON.stringify(parsed));
 
     return parsed;
   }
@@ -3841,6 +4081,21 @@ class CometRushScene extends Phaser.Scene {
     } catch {
       // Storage is optional in file previews and some embedded WebViews.
     }
+  }
+
+  private claimRunAchievements() {
+    const progress = achievementProgress({
+      score: this.score,
+      nearMiss: this.nearMiss,
+      maxCombo: this.maxCombo,
+      stageCleared: this.resultStageCleared,
+      noHit: this.noHitRun,
+    });
+    const newlyUnlocked = progress.filter((achievement) => achievement.unlocked && !this.save.achievements[achievement.id]);
+    for (const achievement of newlyUnlocked) {
+      this.save.achievements[achievement.id] = true;
+    }
+    return newlyUnlocked;
   }
 
   private dailyMissionLabel() {
