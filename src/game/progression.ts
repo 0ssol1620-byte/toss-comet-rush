@@ -169,14 +169,14 @@ export function resolvePerformanceProfile(input: {
   const quality = forced ?? (weakDevice ? 'low' : input.deviceMemory != null && input.deviceMemory >= 6 && (input.hardwareConcurrency ?? 4) >= 6 ? 'high' : 'medium');
 
   if (quality === 'low') {
-    return { quality, starCount: 56, speedLineCount: 8, nebulaCount: 2, particleMultiplier: 0.45, maxPopupsPerSecond: 8 };
+    return { quality, starCount: 40, speedLineCount: 6, nebulaCount: 1, particleMultiplier: 0.35, maxPopupsPerSecond: 6 };
   }
 
   if (quality === 'medium') {
-    return { quality, starCount: 88, speedLineCount: 12, nebulaCount: 3, particleMultiplier: 0.7, maxPopupsPerSecond: 12 };
+    return { quality, starCount: 64, speedLineCount: 8, nebulaCount: 2, particleMultiplier: 0.5, maxPopupsPerSecond: 8 };
   }
 
-  return { quality, starCount: 128, speedLineCount: 18, nebulaCount: 5, particleMultiplier: 1, maxPopupsPerSecond: 18 };
+  return { quality, starCount: 88, speedLineCount: 12, nebulaCount: 3, particleMultiplier: 0.7, maxPopupsPerSecond: 12 };
 }
 
 function toUtcDay(date: string) {
@@ -282,6 +282,25 @@ export function sfxThrottleAllows(last: Record<string, number>, key: string, now
 
 export type ActorJuiceKind = 'shard' | 'hazard' | 'rent' | 'tax' | 'sub' | 'pulse' | 'coin' | 'boost' | 'magnetItem' | 'shieldItem' | 'autopilotItem' | 'freezeItem' | 'droneItem' | 'boosterItem';
 
+export function comboCollectionPolicy(kind: ActorJuiceKind) {
+  const money = kind === 'shard' || kind === 'coin';
+  return {
+    countsForCombo: money,
+    resetsComboOnMiss: money,
+  };
+}
+
+export function nextComboAfterCollect(input: { currentCombo: number; lastCollectMs: number; nowMs: number; comboGraceMs: number; kind: ActorJuiceKind }) {
+  if (!comboCollectionPolicy(input.kind).countsForCombo) {
+    return input.currentCombo;
+  }
+  return input.nowMs - input.lastCollectMs < input.comboGraceMs ? input.currentCombo + 1 : 1;
+}
+
+export function nextComboAfterMiss(input: { currentCombo: number; kind: ActorJuiceKind }) {
+  return comboCollectionPolicy(input.kind).resetsComboOnMiss ? 0 : input.currentCombo;
+}
+
 export function actorJuiceProfile(kind: ActorJuiceKind, stageId: number, spawnIndex: number) {
   const baseScale: Record<ActorJuiceKind, number> = {
     shard: 0.98,
@@ -329,7 +348,7 @@ export function comboRhythmProfile(combo: number) {
     multiplier,
     beat,
     pitch: Math.round(pitch / 20) * 20,
-    label: capped >= 24 ? `FEVER ${capped} COMBO!!` : capped >= 8 ? `${capped} COMBO!` : `+${capped} COMBO`,
+    label: capped >= 24 ? `FEVER ${capped}` : capped >= 8 ? `${capped} COMBO` : `${capped} COMBO`,
   };
 }
 

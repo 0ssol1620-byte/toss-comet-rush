@@ -41,6 +41,9 @@ const {
   upgradeChoicePresentation,
   upgradeChoiceIndexAt,
   skillPressureProfile,
+  comboCollectionPolicy,
+  nextComboAfterCollect,
+  nextComboAfterMiss,
 } = progression;
 
 assert.equal(
@@ -89,13 +92,14 @@ assert.equal(firstRunAssistProfile(1, 4).hazardMultiplier, 1);
 
 assert.deepEqual(resolvePerformanceProfile({ deviceMemory: 1, hardwareConcurrency: 2, saveQuality: 'auto' }), {
   quality: 'low',
-  starCount: 56,
-  speedLineCount: 8,
-  nebulaCount: 2,
-  particleMultiplier: 0.45,
-  maxPopupsPerSecond: 8,
+  starCount: 40,
+  speedLineCount: 6,
+  nebulaCount: 1,
+  particleMultiplier: 0.35,
+  maxPopupsPerSecond: 6,
 });
-assert.equal(resolvePerformanceProfile({ deviceMemory: 8, hardwareConcurrency: 8, saveQuality: 'high' }).starCount, 128);
+assert.equal(resolvePerformanceProfile({ deviceMemory: 8, hardwareConcurrency: 8, saveQuality: 'high' }).starCount, 88);
+assert.ok(resolvePerformanceProfile({ deviceMemory: 4, hardwareConcurrency: 4, saveQuality: 'auto' }).particleMultiplier <= 0.55);
 assert.equal(updateStreakState({ lastLoginDate: '', current: 0, best: 0 }, '2026-04-29').current, 1);
 assert.deepEqual(updateStreakState({ lastLoginDate: '2026-04-28', current: 2, best: 2 }, '2026-04-29'), {
   lastLoginDate: '2026-04-29',
@@ -142,9 +146,9 @@ assert.ok(actorJuiceProfile('rent', 5, 2).scale > actorJuiceProfile('sub', 5, 2)
 assert.ok(actorJuiceProfile('coin', 2, 3).scale > actorJuiceProfile('coin', 2, 0).scale);
 assert.deepEqual(nearMissJuiceProfile(1), { label: '스침!', scoreBonus: 260, shake: 0.004, pitch: 740, freezeMs: 18 });
 assert.deepEqual(nearMissJuiceProfile(6), { label: '아슬회피 x6', scoreBonus: 640, shake: 0.009, pitch: 1040, freezeMs: 26 });
-assert.deepEqual(comboRhythmProfile(1), { multiplier: 1, beat: 1, pitch: 520, label: '+1 COMBO' });
-assert.deepEqual(comboRhythmProfile(12), { multiplier: 1.6, beat: 4, pitch: 820, label: '12 COMBO!' });
-assert.deepEqual(comboRhythmProfile(30), { multiplier: 2.2, beat: 8, pitch: 1180, label: 'FEVER 30 COMBO!!' });
+assert.deepEqual(comboRhythmProfile(1), { multiplier: 1, beat: 1, pitch: 520, label: '1 COMBO' });
+assert.deepEqual(comboRhythmProfile(12), { multiplier: 1.6, beat: 4, pitch: 820, label: '12 COMBO' });
+assert.deepEqual(comboRhythmProfile(30), { multiplier: 2.2, beat: 8, pitch: 1180, label: 'FEVER 30' });
 
 assert.deepEqual(upgradeChoicePresentation(844), {
   titleY: 146,
@@ -172,5 +176,16 @@ assert.deepEqual(skillPressureProfile({ stageId: 2, combo: 124, hp: 3, elapsedSe
   label: '실력자 압박',
 });
 assert.equal(skillPressureProfile({ stageId: 1, combo: 3, hp: 1, elapsedSeconds: 8, score: 1000 }).hazardBonus, 0);
+
+assert.deepEqual(comboCollectionPolicy('shard'), { countsForCombo: true, resetsComboOnMiss: true });
+assert.deepEqual(comboCollectionPolicy('coin'), { countsForCombo: true, resetsComboOnMiss: true });
+assert.deepEqual(comboCollectionPolicy('boost'), { countsForCombo: false, resetsComboOnMiss: false });
+assert.deepEqual(comboCollectionPolicy('pulse'), { countsForCombo: false, resetsComboOnMiss: false });
+assert.equal(nextComboAfterCollect({ currentCombo: 7, lastCollectMs: 1000, nowMs: 2300, comboGraceMs: 1650, kind: 'shard' }), 8);
+assert.equal(nextComboAfterCollect({ currentCombo: 7, lastCollectMs: 1000, nowMs: 2300, comboGraceMs: 1650, kind: 'boost' }), 7);
+assert.equal(nextComboAfterCollect({ currentCombo: 7, lastCollectMs: 1000, nowMs: 3800, comboGraceMs: 1650, kind: 'coin' }), 1);
+assert.equal(nextComboAfterMiss({ currentCombo: 12, kind: 'shard' }), 0);
+assert.equal(nextComboAfterMiss({ currentCombo: 12, kind: 'boost' }), 12);
+assert.deepEqual(comboRhythmProfile(30), { multiplier: 2.2, beat: 8, pitch: 1180, label: 'FEVER 30' });
 
 console.log('progression tests passed');

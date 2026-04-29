@@ -166,7 +166,7 @@ assert(source.includes("this.renderPauseLayer();"), 'pause overlay is not implem
 assert(source.includes("this.showUpgradeChoice"), 'run upgrade choice is not implemented');
 assert(source.includes("meta_upgrade_buy"), 'meta progression analytics are not implemented');
 assert(source.includes("'rent' | 'tax' | 'sub'"), 'expanded financial hazard types are not implemented');
-assert(source.includes("BUILD_VERSION = 'v15b-menu-clarity'"), 'source build stamp is not v15b-menu-clarity');
+assert(source.includes("BUILD_VERSION = 'v16-combo-reset-perf-text'"), 'source build stamp is not v16-combo-reset-perf-text');
 assert(source.includes('MAX_FRAME_DELTA = 42'), 'frame delta clamp is not implemented');
 assert(source.includes('MAX_ACTORS = 38'), 'active actor cap is not implemented');
 assert(source.includes('MAX_DIFFICULTY = 4.85'), 'difficulty cap is not implemented');
@@ -186,6 +186,11 @@ assert(source.includes('salary_alert'), 'salary alert analytics are not implemen
 assert(source.includes('stage_progression_hint'), 'stage progression hint analytics are not implemented');
 assert(source.includes('power_item_collect'), 'power item collection analytics are not implemented');
 assert(source.includes('stage_map_event'), 'stage map event analytics are not implemented');
+assert(source.includes('combo_reset_missed_cash'), 'missing cash should reset combo');
+assert(!source.includes('showCenterFeedback(`+1.2초 보너스`'), 'center bonus text can overlap combo badge');
+assert(!source.includes('스쳤다! +각성'), 'old priority graze center copy remains');
+assert(!source.includes('FEVER ${capped} COMBO!!'), 'old duplicated fever combo label remains');
+assert(!source.includes('12 COMBO!'), 'old exclamation combo label remains');
 
 function exportedFiles() {
   const home = homedir();
@@ -208,7 +213,7 @@ for (const target of exportsToCheck) {
   }
 
   const html = await readFile(target, 'utf8');
-  assert(html.includes('v15b-menu-clarity'), `export ${target} does not contain v15b-menu-clarity stamp`);
+  assert(html.includes('v16-combo-reset-perf-text'), `export ${target} does not contain v16-combo-reset-perf-text stamp`);
   assert(html.includes('screen_onboarding'), `export ${target} does not contain onboarding screen analytics`);
   assert(html.includes('onboarding_complete'), `export ${target} does not contain onboarding completion analytics`);
   assert(html.includes('screen_growth'), `export ${target} does not contain growth screen analytics`);

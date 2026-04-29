@@ -6,6 +6,7 @@ import {
   actorJuiceProfile,
   buildRetryHook,
   collectionProgress,
+  comboCollectionPolicy,
   comboRhythmProfile,
   evolutionHint,
   skillPressureProfile,
@@ -37,7 +38,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v15b-menu-clarity';
+const BUILD_VERSION = 'v16-combo-reset-perf-text';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
@@ -498,6 +499,8 @@ class CometRushScene extends Phaser.Scene {
   private boosterMs = 0;
   private mapEventMs = 0;
   private lastCollectMs = 0;
+  private lastCollectBounceMs = 0;
+  private lastMissPopupMs = 0;
   private comboGraceMs = 1650;
   private arenaShake = 0;
 
@@ -3034,9 +3037,8 @@ class CometRushScene extends Phaser.Scene {
         this.burst(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, this.nearChain >= 3 ? 24 : 14);
         this.shockwave(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, 1.15 + Math.min(1.2, this.nearChain * 0.16));
         this.playTone([juice.pitch, Math.min(1320, juice.pitch * 1.26)], 0.026, 0.07 + Math.min(0.045, this.nearChain * 0.006), 'triangle');
-        const nearLabel = this.nearChain >= 2 ? `스쳤다! x${this.nearChain}` : '스쳤다! +각성';
-        this.showCenterFeedback(nearLabel, this.nearChain >= 3 ? '#ffc857' : '#cfc4ff', GAME_HEIGHT / 2 + 72);
-        this.popText(GAME_WIDTH / 2, PLAYER_Y - 138, nearLabel, this.nearChain >= 3 ? '#ffc857' : '#cfc4ff', true);
+        const nearLabel = this.nearChain >= 2 ? `스쳤다 x${this.nearChain}` : '스쳤다';
+        this.popText(GAME_WIDTH / 2, PLAYER_Y - 138, nearLabel, this.nearChain >= 3 ? '#ffc857' : '#cfc4ff', false);
         if (this.nearChain === 3 || this.nearChain === 6) {
           this.bridge.log('near_miss_chain', { chain: this.nearChain, score: this.score }, 'event');
         }
@@ -3052,6 +3054,7 @@ class CometRushScene extends Phaser.Scene {
 
       if (actor.image.y > GAME_HEIGHT + 70) {
         toRemove.add(actor);
+        this.handleMissedActor(actor);
       }
     }
 
@@ -3067,36 +3070,60 @@ class CometRushScene extends Phaser.Scene {
     }
   }
 
+  private handleMissedActor(actor: Actor) {
+    if (!comboCollectionPolicy(actor.kind).resetsComboOnMiss || this.combo <= 0) {
+      return;
+    }
+
+    this.combo = 0;
+    this.nearChain = 0;
+    this.comboGraceMs = 1650;
+    this.lastCollectMs = 0;
+    if (this.time.now - this.lastMissPopupMs > 850) {
+      this.lastMissPopupMs = this.time.now;
+      this.popText(GAME_WIDTH / 2, PLAYER_Y - 132, '현금 놓침 · 콤보 리셋', '#ffccd5', false);
+    }
+    this.bridge.log('combo_reset_missed_cash', { score: this.score, timeLeft: Math.round(this.timeLeft * 10) / 10 }, 'event');
+  }
+
   private collect(actor: Actor) {
     const now = this.time.now;
-    const comboAlive = now - this.lastCollectMs < this.comboGraceMs;
-    this.combo = comboAlive ? this.combo + 1 : 1;
-    this.maxCombo = Math.max(this.maxCombo, this.combo);
-    this.lastCollectMs = now;
+    const policy = comboCollectionPolicy(actor.kind);
+    if (policy.countsForCombo) {
+      const comboAlive = now - this.lastCollectMs < this.comboGraceMs;
+      this.combo = comboAlive ? this.combo + 1 : 1;
+      this.maxCombo = Math.max(this.maxCombo, this.combo);
+      this.lastCollectMs = now;
+    }
 
-    const rhythm = comboRhythmProfile(this.combo);
+    const rhythm = comboRhythmProfile(Math.max(1, this.combo));
     this.comboGraceMs = Math.max(1650, 1650 + rhythm.beat * 55);
     const feverMultiplier = this.feverMs > 0 ? 2.1 + this.upgrades.payday * 0.18 + this.save.meta.luck * 0.03 + (this.hasEvolution('thirteenthPay') ? 0.35 : 0) : 1;
     const comboMultiplier = 1 + Math.min(this.combo, 36) * 0.045;
     const hpBonus = actor.kind === 'pulse' ? 0 : this.hp * 8;
     const rebateMultiplier = 1 + this.upgrades.rebate * 0.08 + this.save.meta.luck * 0.015 + (this.hasEvolution('autoRefund') ? 0.14 : 0);
     this.score += Math.round((actor.value + hpBonus) * comboMultiplier * feverMultiplier * rebateMultiplier);
-    this.tweens.add({
-      targets: [this.scoreText, this.scoreCard],
-      scale: 1.04 + rhythm.multiplier * 0.025,
-      duration: Math.max(42, 86 - rhythm.beat * 5),
-      yoyo: true,
-      ease: 'Back.easeOut',
-    });
-    this.tweens.add({
-      targets: this.comboText,
-      scale: Math.max(1.08, 1 + rhythm.multiplier * 0.08),
-      duration: Math.max(38, 76 - rhythm.beat * 5),
-      yoyo: true,
-      ease: 'Back.easeOut',
-    });
+    if (now - this.lastCollectBounceMs > 70) {
+      this.lastCollectBounceMs = now;
+      this.tweens.add({
+        targets: [this.scoreText, this.scoreCard],
+        scale: 1.03 + rhythm.multiplier * 0.018,
+        duration: Math.max(38, 72 - rhythm.beat * 4),
+        yoyo: true,
+        ease: 'Back.easeOut',
+      });
+      if (policy.countsForCombo) {
+        this.tweens.add({
+          targets: this.comboText,
+          scale: Math.max(1.04, 1 + rhythm.multiplier * 0.055),
+          duration: Math.max(36, 66 - rhythm.beat * 4),
+          yoyo: true,
+          ease: 'Back.easeOut',
+        });
+      }
+    }
 
-    if (actor.kind === 'shard' || actor.kind === 'coin' || actor.kind === 'boost') {
+    if (policy.countsForCombo) {
       this.shards += 1;
       this.haptic(this.combo % 8 === 0 ? 'tickMedium' : 'tickWeak');
     }
@@ -3116,14 +3143,14 @@ class CometRushScene extends Phaser.Scene {
     }
 
     const centerComboColor = this.combo >= 24 ? '#fff4d8' : this.combo >= 8 ? '#9defff' : '#66ffc2';
-    if (this.combo >= 1 && actor.kind !== 'boost') {
+    if (policy.countsForCombo && this.combo >= 1) {
       const scoreLabel = `+${actor.value}`;
       // The persistent center combo badge owns COMBO/FEVER text.
       // Keep collection popups local to the actor so the center never stacks duplicate combo labels.
       this.popText(actor.image.x, actor.image.y - 34, scoreLabel, centerComboColor, false);
     }
 
-    if (this.combo >= 4 && this.combo % 4 === 0 && actor.kind !== 'boost') {
+    if (policy.countsForCombo && this.combo >= 4 && this.combo % 4 === 0) {
       this.shockwave(GAME_WIDTH / 2, PLAYER_Y - 94, this.combo >= 24 ? PALETTE.gold : PALETTE.sky, 1.4);
     }
 
@@ -3142,13 +3169,12 @@ class CometRushScene extends Phaser.Scene {
       });
     }
 
-    this.burst(actor.image.x, actor.image.y, this.actorGlowColor(actor.kind), actor.kind === 'pulse' || this.isPowerItem(actor.kind) ? 22 : actor.kind === 'boost' ? 14 : 9);
+    this.burst(actor.image.x, actor.image.y, this.actorGlowColor(actor.kind), actor.kind === 'pulse' || this.isPowerItem(actor.kind) ? 12 : actor.kind === 'boost' ? 8 : 6);
 
-    if (this.combo > 0 && this.combo % 10 === 0) {
+    if (policy.countsForCombo && this.combo > 0 && this.combo % 10 === 0) {
       this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 1.2);
       this.haptic('softMedium');
       this.bridge.log('combo_milestone', { combo: this.combo, score: this.score }, 'event');
-      this.showCenterFeedback(`+1.2초 보너스`, '#ffc857', GAME_HEIGHT / 2 + 54);
       this.popText(GAME_WIDTH / 2, PLAYER_Y - 110, `+1.2초`, '#ffc857', false);
       this.tweens.add({
         targets: [this.timerText, this.scoreText],
@@ -3375,7 +3401,7 @@ class CometRushScene extends Phaser.Scene {
     const maxHp = this.maxHp();
     const shield = this.upgrades.shield > 0 ? ` · 보험 ${this.upgrades.shield}` : '';
     this.comboText.setFontSize(13);
-    const comboLabel = this.combo >= 24 ? `FEVER ${this.combo}` : this.combo >= 8 ? `${this.combo} COMBO!` : `콤보 ${this.combo}`;
+    const comboLabel = this.combo >= 24 ? `FEVER ${this.combo}` : this.combo >= 8 ? `${this.combo} COMBO` : `콤보 ${this.combo}`;
     this.comboText.setText(`${comboLabel} · 체력 ${'◆'.repeat(Math.max(0, this.hp))}${'◇'.repeat(Math.max(0, maxHp - this.hp))}${shield}`);
     this.fitText(this.comboText, 245, 9);
 
