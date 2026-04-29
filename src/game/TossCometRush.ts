@@ -34,7 +34,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v14b-combo-nomute';
+const BUILD_VERSION = 'v14c-single-combo';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
@@ -901,30 +901,29 @@ class CometRushScene extends Phaser.Scene {
     this.comboText.setDepth(20);
     this.hudObjects.push(this.comboText);
 
-    this.centerFeedbackText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 86, '', {
+    this.centerFeedbackText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 72, '', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
-      fontSize: '24px',
+      fontSize: '22px',
       fontStyle: '900',
       color: '#fff4d8',
       stroke: '#001622',
-      strokeThickness: 5,
-      shadow: { color: '#001622', blur: 14, fill: true },
+      strokeThickness: 4,
+      shadow: { color: '#001622', blur: 6, fill: true },
     });
     this.centerFeedbackText.setOrigin(0.5, 0.5);
     this.centerFeedbackText.setDepth(80);
     this.centerFeedbackText.setAlpha(0);
     this.hudObjects.push(this.centerFeedbackText);
 
-    this.centerComboLiveText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 122, '', {
+    this.centerComboLiveText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 96, '', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
-      fontSize: '30px',
+      fontSize: '22px',
       fontStyle: '900',
       color: '#66ffc2',
       stroke: '#050816',
-      strokeThickness: 10,
-      shadow: { offsetX: 0, offsetY: 5, color: '#000000', blur: 14, fill: true },
+      strokeThickness: 5,
     });
     this.centerComboLiveText.setOrigin(0.5, 0.5);
     this.centerComboLiveText.setDepth(89);
@@ -3066,9 +3065,10 @@ class CometRushScene extends Phaser.Scene {
 
     const centerComboColor = this.combo >= 24 ? '#fff4d8' : this.combo >= 8 ? '#9defff' : '#66ffc2';
     if (this.combo >= 1 && actor.kind !== 'boost') {
-      const comboLabel = this.combo >= 4 ? rhythm.label : `+${actor.value} · ${this.combo} COMBO`;
-      this.showCenterFeedback(comboLabel, centerComboColor, GAME_HEIGHT / 2 + 86);
-      this.popText(GAME_WIDTH / 2, PLAYER_Y - 94, comboLabel, centerComboColor, true);
+      const scoreLabel = `+${actor.value}`;
+      // The persistent center combo badge owns COMBO/FEVER text.
+      // Keep collection popups local to the actor so the center never stacks duplicate combo labels.
+      this.popText(actor.image.x, actor.image.y - 34, scoreLabel, centerComboColor, false);
     }
 
     if (this.combo >= 4 && this.combo % 4 === 0 && actor.kind !== 'boost') {
@@ -3098,8 +3098,8 @@ class CometRushScene extends Phaser.Scene {
       this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 1.2);
       this.haptic('softMedium');
       this.bridge.log('combo_milestone', { combo: this.combo, score: this.score }, 'event');
-      this.showCenterFeedback(`COMBO ${this.combo} · +1.2초`, '#ffc857', GAME_HEIGHT / 2 + 62);
-      this.popText(GAME_WIDTH / 2, PLAYER_Y - 110, `COMBO ${this.combo} · +1.2초`, '#ffc857', true);
+      this.showCenterFeedback(`+1.2초 보너스`, '#ffc857', GAME_HEIGHT / 2 + 54);
+      this.popText(GAME_WIDTH / 2, PLAYER_Y - 110, `+1.2초`, '#ffc857', false);
       this.tweens.add({
         targets: [this.timerText, this.scoreText],
         scale: 1.09,
@@ -3362,15 +3362,15 @@ class CometRushScene extends Phaser.Scene {
     }
 
     if (this.phase === 'playing' && this.combo > 0) {
-      const liveLabel = this.combo >= 24 ? `FEVER ${this.combo} COMBO!!` : this.combo >= 8 ? `${this.combo} COMBO!` : `${this.combo} COMBO`;
+      const liveLabel = this.combo >= 24 ? `FEVER ${this.combo}` : this.combo >= 8 ? `${this.combo} COMBO` : `${this.combo} COMBO`;
       this.centerComboLiveText.setText(liveLabel);
       this.centerComboLiveText.setVisible(true);
       this.centerComboLiveText.setActive(true);
       this.centerComboLiveText.setOrigin(0.5, 0.5);
-      this.centerComboLiveText.setPosition(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 122);
-      this.centerComboLiveText.setDepth(120);
-      this.centerComboLiveText.setAlpha(1);
-      this.centerComboLiveText.setScale(1.1 + Math.min(0.28, this.combo * 0.008));
+      this.centerComboLiveText.setPosition(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 96);
+      this.centerComboLiveText.setDepth(112);
+      this.centerComboLiveText.setAlpha(0.92);
+      this.centerComboLiveText.setScale(0.92 + Math.min(0.16, this.combo * 0.003));
       this.centerComboLiveText.setColor(this.combo >= 24 ? '#fff4d8' : this.combo >= 8 ? '#9defff' : '#66ffc2');
     } else {
       this.centerComboLiveText.setAlpha(0);
