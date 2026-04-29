@@ -166,14 +166,14 @@ assert(source.includes("this.renderPauseLayer();"), 'pause overlay is not implem
 assert(source.includes("this.showUpgradeChoice"), 'run upgrade choice is not implemented');
 assert(source.includes("meta_upgrade_buy"), 'meta progression analytics are not implemented');
 assert(source.includes("'rent' | 'tax' | 'sub'"), 'expanded financial hazard types are not implemented');
-assert(source.includes("BUILD_VERSION = 'v16b-guide-layout'"), 'source build stamp is not v16b-guide-layout');
+assert(source.includes("BUILD_VERSION = 'v16c-focus-difficulty-juice'"), 'source build stamp is not v16c-focus-difficulty-juice');
 assert(source.includes('MAX_FRAME_DELTA = 42'), 'frame delta clamp is not implemented');
 assert(source.includes('MAX_ACTORS = 38'), 'active actor cap is not implemented');
 assert(source.includes('MAX_DIFFICULTY = 4.85'), 'difficulty cap is not implemented');
 assert(source.includes('최고 잔고'), 'menu copy should say 최고 잔고');
 assert(source.includes('STAGE ${stage.id} 시작'), 'menu start CTA should be stage-specific');
-assert(source.includes('스테이지 기록 없음'), 'menu should clarify empty stage records');
-assert(source.includes('50,000원마다 고지서 속도 상승'), 'menu should explain alert consequence');
+assert(source.includes('60초 버티고 잔고를 지켜라'), 'landing subtitle should be focused and short');
+assert(source.includes('경보: 50,000원마다 속도 상승'), 'menu should explain alert consequence compactly');
 assert(!source.includes('최고잔고 '), 'old menu copy 최고잔고 remains');
 assert(!source.includes('연습 다시보기'), 'old tutorial CTA remains');
 assert(source.includes('createOriginalBgmBuffer'), 'pre-rendered original BGM buffer is not implemented');
@@ -191,11 +191,16 @@ assert(!source.includes('showCenterFeedback(`+1.2초 보너스`'), 'center bonus
 assert(!source.includes('스쳤다! +각성'), 'old priority graze center copy remains');
 assert(!source.includes('FEVER ${capped} COMBO!!'), 'old duplicated fever combo label remains');
 assert(!source.includes('12 COMBO!'), 'old exclamation combo label remains');
-assert(source.includes("labelTop: '현금'"), 'menu legend should split labels into two lines');
-assert(source.includes('legendY: 390'), 'normal menu layout should reserve vertical space for legend cards');
+assert(source.includes("label: '현금'"), 'menu legend should use short labels');
+assert(source.includes("label: '회피'"), 'menu legend should use short labels');
+assert(source.includes("label: '스침'"), 'menu legend should use short labels');
+assert(source.includes('legendY: 356'), 'normal menu layout should reserve compact vertical space for legend cards');
+assert(source.includes('spawnOddsProfile'), 'spawn odds hardening helper should be wired');
+assert(source.includes('lastComboPulse'), 'center combo badge should have pulse animation state');
 assert(source.includes('tappedUpgradeCard'), 'onboarding upgrade cards need coordinate fallback taps');
 assert(source.includes('isPointInRect(pointer.x, pointer.y, GAME_WIDTH / 2, 784'), 'onboarding skip button needs coordinate fallback tap');
 assert(!source.includes('현금 획득 · 고지서 회피 · 아슬 회피로 각성'), 'old crowded subtitle remains');
+assert(!source.includes('60초 동안 100,000원 이상 지키세요'), 'old dense landing subtitle remains');
 
 function exportedFiles() {
   const home = homedir();
@@ -218,7 +223,7 @@ for (const target of exportsToCheck) {
   }
 
   const html = await readFile(target, 'utf8');
-  assert(html.includes('v16b-guide-layout'), `export ${target} does not contain v16b-guide-layout stamp`);
+  assert(html.includes('v16c-focus-difficulty-juice'), `export ${target} does not contain v16c-focus-difficulty-juice stamp`);
   assert(html.includes('screen_onboarding'), `export ${target} does not contain onboarding screen analytics`);
   assert(html.includes('onboarding_complete'), `export ${target} does not contain onboarding completion analytics`);
   assert(html.includes('screen_growth'), `export ${target} does not contain growth screen analytics`);

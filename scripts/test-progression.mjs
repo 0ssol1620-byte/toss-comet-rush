@@ -21,6 +21,7 @@ const {
   missionRewardState,
   evolutionHint,
   firstRunAssistProfile,
+  spawnOddsProfile,
   resolvePerformanceProfile,
   resultShareCopy,
   collectionProgress,
@@ -86,9 +87,19 @@ assert.equal(missionProgress({ shards: 87, nearMiss: 11, maxCombo: 36 }).remaini
 assert.equal(evolutionHint('magnet', { magnet: 0, rebate: 1, overtime: 0, shield: 0, payday: 0, slow: 0 }), '선택 시 EVO 자동환급장 완성');
 assert.equal(evolutionHint('payday', { magnet: 0, rebate: 0, overtime: 0, shield: 0, payday: 0, slow: 0 }), '13월의 월급까지 1단계');
 
-assert.equal(firstRunAssistProfile(0, 4).hazardMultiplier, 0.6);
-assert.equal(firstRunAssistProfile(0, 13).guaranteeMagnet, true);
+assert.equal(firstRunAssistProfile(0, 4).hazardMultiplier, 0.72);
+assert.equal(firstRunAssistProfile(0, 11.5).guaranteeMagnet, true);
+assert.equal(firstRunAssistProfile(0, 13).guaranteeMagnet, false);
 assert.equal(firstRunAssistProfile(1, 4).hazardMultiplier, 1);
+const stage2Odds = spawnOddsProfile({ stageId: 2, difficulty: 1.8, tier: 1, hp: 3, clutch: false, assistHazardMultiplier: 1, pressureHazardBonus: 0.06, powerItemChance: 0.047 });
+assert.ok(stage2Odds.hazardChance > 0.3);
+assert.ok(stage2Odds.powerChance - stage2Odds.pulseChance < 0.06);
+assert.ok(stage2Odds.coinThreshold >= 0.94);
+const clutchOdds = spawnOddsProfile({ stageId: 6, difficulty: 4.85, tier: 8, hp: 1, clutch: true, assistHazardMultiplier: 1, pressureHazardBonus: 0.12, powerItemChance: 0.085 });
+assert.ok(clutchOdds.hazardChance <= clutchOdds.pulseChance);
+assert.ok(clutchOdds.pulseChance <= clutchOdds.powerChance);
+assert.ok(clutchOdds.powerChance <= clutchOdds.boostChance);
+assert.ok(clutchOdds.boostChance < 1);
 
 assert.deepEqual(resolvePerformanceProfile({ deviceMemory: 1, hardwareConcurrency: 2, saveQuality: 'auto' }), {
   quality: 'low',
@@ -141,7 +152,7 @@ assert.deepEqual(sfxThrottleAllows({}, 'collect', 1000, 38), { allowed: true, la
 assert.equal(sfxThrottleAllows({ collect: 1000 }, 'collect', 1020, 38).allowed, false);
 assert.equal(sfxThrottleAllows({ collect: 1000 }, 'collect', 1040, 38).allowed, true);
 
-assert.deepEqual(actorJuiceProfile('hazard', 4, 0), { scale: 1.12, laneWobble: 0, aura: 1 });
+assert.deepEqual(actorJuiceProfile('hazard', 4, 0), { scale: 1.16, laneWobble: 0, aura: 1 });
 assert.ok(actorJuiceProfile('rent', 5, 2).scale > actorJuiceProfile('sub', 5, 2).scale);
 assert.ok(actorJuiceProfile('coin', 2, 3).scale > actorJuiceProfile('coin', 2, 0).scale);
 assert.deepEqual(nearMissJuiceProfile(1), { label: '스침!', scoreBonus: 260, shake: 0.004, pitch: 740, freezeMs: 18 });

@@ -152,11 +152,28 @@ export function firstRunAssistProfile(plays: number, elapsedSeconds: number) {
   const firstRun = plays === 0;
   return {
     firstRun,
-    hazardMultiplier: firstRun && elapsedSeconds < 8 ? 0.6 : 1,
+    hazardMultiplier: firstRun && elapsedSeconds < 6 ? 0.72 : 1,
     freeShield: firstRun,
-    guaranteeMagnet: firstRun && elapsedSeconds >= 12 && elapsedSeconds <= 15,
+    guaranteeMagnet: firstRun && elapsedSeconds >= 11 && elapsedSeconds <= 12.5,
     minCredits: firstRun ? 100 : 0,
   };
+}
+
+export function spawnOddsProfile(input: { stageId: number; difficulty: number; tier: number; hp: number; clutch: boolean; assistHazardMultiplier: number; pressureHazardBonus: number; powerItemChance: number }) {
+  const stagePressure = Math.max(0, input.stageId - 1);
+  const hazardChance = Math.min(
+    0.66,
+    Math.max(
+      0.12,
+      (0.15 + input.difficulty * 0.026 + input.tier * 0.038 + stagePressure * 0.016 + input.pressureHazardBonus + (input.clutch ? 0.06 : 0)) *
+        input.assistHazardMultiplier,
+    ),
+  );
+  const pulseChance = Math.min(0.84, hazardChance + (input.clutch ? 0.04 : 0.055));
+  const powerChance = Math.min(0.91, pulseChance + input.powerItemChance);
+  const boostChance = Math.min(0.96, powerChance + (input.hp <= 1 ? 0.075 : 0.035));
+  const coinThreshold = input.clutch ? 0.9 : 0.94;
+  return { hazardChance, pulseChance, powerChance, boostChance, coinThreshold };
 }
 
 export function resolvePerformanceProfile(input: {
@@ -303,13 +320,13 @@ export function nextComboAfterMiss(input: { currentCombo: number; kind: ActorJui
 
 export function actorJuiceProfile(kind: ActorJuiceKind, stageId: number, spawnIndex: number) {
   const baseScale: Record<ActorJuiceKind, number> = {
-    shard: 0.98,
-    hazard: 1.12,
-    rent: 1.34,
-    tax: 1.16,
-    sub: 0.92,
-    pulse: 1.06,
-    coin: 0.86,
+    shard: 0.94,
+    hazard: 1.16,
+    rent: 1.42,
+    tax: 1.22,
+    sub: 0.84,
+    pulse: 1.02,
+    coin: 0.82,
     boost: 1,
     magnetItem: 1.08,
     shieldItem: 1.1,
@@ -318,9 +335,10 @@ export function actorJuiceProfile(kind: ActorJuiceKind, stageId: number, spawnIn
     droneItem: 1.05,
     boosterItem: 1.08,
   };
-  const variant = kind === 'hazard' && spawnIndex === 0 ? 0 : ((spawnIndex % 5) - 2) * 0.045;
-  const stageBoost = kind === 'hazard' && spawnIndex === 0 ? 0 : kind === 'coin' || kind === 'shard' ? Math.min(0.12, stageId * 0.018) : Math.min(0.16, stageId * 0.012);
-  const scale = Math.round((baseScale[kind] + variant + stageBoost) * 100) / 100;
+  const variant = kind === 'hazard' && spawnIndex === 0 ? 0 : ((spawnIndex % 7) - 3) * 0.052;
+  const threatVariance = kind === 'rent' ? (spawnIndex % 3) * 0.06 : kind === 'sub' ? -((spawnIndex % 2) * 0.05) : 0;
+  const stageBoost = kind === 'hazard' && spawnIndex === 0 ? 0 : kind === 'coin' || kind === 'shard' ? Math.min(0.08, stageId * 0.012) : Math.min(0.18, stageId * 0.014);
+  const scale = Math.round((baseScale[kind] + variant + threatVariance + stageBoost) * 100) / 100;
   return {
     scale,
     laneWobble: kind === 'sub' || kind === 'hazard' ? (spawnIndex % 3) * 8 : 0,

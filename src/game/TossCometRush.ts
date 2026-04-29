@@ -10,6 +10,7 @@ import {
   comboRhythmProfile,
   evolutionHint,
   skillPressureProfile,
+  spawnOddsProfile,
   upgradeChoiceIndexAt,
   upgradeChoicePresentation,
   firstRunAssistProfile,
@@ -38,7 +39,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v16b-guide-layout';
+const BUILD_VERSION = 'v16c-focus-difficulty-juice';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
@@ -502,6 +503,7 @@ class CometRushScene extends Phaser.Scene {
   private lastCollectMs = 0;
   private lastCollectBounceMs = 0;
   private lastMissPopupMs = 0;
+  private lastComboPulse = 0;
   private comboGraceMs = 1650;
   private arenaShake = 0;
 
@@ -1023,6 +1025,7 @@ class CometRushScene extends Phaser.Scene {
     const stage = this.currentStage();
     const weekly = weeklyMissionProgress(this.save.weekly);
     const unlockedAchievementCount = Object.values(this.save.achievements).filter(Boolean).length;
+    const stageBest = this.normalizedBestByStage()[stage.id - 1] ?? 0;
     const panel = this.add.container(0, 0);
     const glass = this.add.rectangle(GAME_WIDTH / 2, layout.glassY, 342, layout.glassHeight, 0x06131f, 0.64);
     glass.setStrokeStyle(1, PALETTE.aqua, 0.28);
@@ -1049,18 +1052,17 @@ class CometRushScene extends Phaser.Scene {
       color: '#86e8ff',
     });
     eyebrow.setOrigin(0.5);
-    const title = this.add.text(GAME_WIDTH / 2, layout.titleY, '월급\n방어전', {
+    const title = this.add.text(GAME_WIDTH / 2, layout.titleY, '월급 방어전', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: `${layout.titleSize}px`,
       fontStyle: '900',
-      lineSpacing: -10,
       color: '#f8fbff',
       shadow: { color: '#00c2ff', blur: 22, fill: true },
     });
     title.setOrigin(0.5);
 
-    const subtitle = this.add.text(GAME_WIDTH / 2, layout.subtitleY, '60초 동안 100,000원 이상 지키세요\n먹고 · 피하고 · 스쳐서 FEVER 충전', {
+    const subtitle = this.add.text(GAME_WIDTH / 2, layout.subtitleY, '60초 버티고 잔고를 지켜라', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '13px',
@@ -1089,7 +1091,7 @@ class CometRushScene extends Phaser.Scene {
     const mission = this.add.text(
       GAME_WIDTH / 2,
       layout.missionY,
-      `${this.stageMenuLabel()}\n🔥 연속 접속 ${this.save.streak.current}일 · 이번 주 ${weekly.completed}/${weekly.total} · 업적 ${unlockedAchievementCount}/5`,
+      `STAGE ${stage.id} · ${stage.name}\n목표 ${stage.targetScore.toLocaleString('ko-KR')}원 · 최고 ${stageBest > 0 ? `${stageBest.toLocaleString('ko-KR')}원` : '도전 전'}`,
       {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
@@ -1101,7 +1103,7 @@ class CometRushScene extends Phaser.Scene {
     mission.setOrigin(0.5);
     this.fitText(mission, 282, 10);
 
-    const ruleStrip = this.add.text(GAME_WIDTH / 2, layout.ruleY, `50,000원마다 고지서 속도 상승  |  목표 ${stage.targetScore.toLocaleString('ko-KR')}원`, {
+    const ruleStrip = this.add.text(GAME_WIDTH / 2, layout.ruleY, `경보: 50,000원마다 속도 상승`, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '11px',
@@ -1137,7 +1139,7 @@ class CometRushScene extends Phaser.Scene {
         })
       : undefined;
 
-    const footer = this.add.text(GAME_WIDTH / 2, layout.footerY, '드래그 이동 · 아슬 회피로 FEVER 충전 · 잔고 0원 되면 실패', {
+    const footer = this.add.text(GAME_WIDTH / 2, layout.footerY, `출석 ${this.save.streak.current}일 · 주간 ${weekly.completed}/${weekly.total} · 업적 ${unlockedAchievementCount}/5`, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: layout.compact ? '11px' : '12px',
@@ -1213,17 +1215,17 @@ class CometRushScene extends Phaser.Scene {
           glassHeight: 686,
           eyebrowY: 18,
           dangerY: 46,
-          heroY: 118,
-          heroScale: 0.48,
-          titleY: 226,
-          titleSize: 42,
-          subtitleY: 284,
-          legendY: 330,
-          bestY: 374,
-          missionY: 438,
-          ruleY: 494,
-          startY: 558,
-          secondaryY: 628,
+          heroY: 122,
+          heroScale: 0.44,
+          titleY: 224,
+          titleSize: 38,
+          subtitleY: 276,
+          legendY: 324,
+          bestY: 370,
+          missionY: 432,
+          ruleY: 486,
+          startY: 552,
+          secondaryY: 622,
           footerY: 724,
         }
       : {
@@ -1232,52 +1234,51 @@ class CometRushScene extends Phaser.Scene {
           glassHeight: 674,
           eyebrowY: 24,
           dangerY: 58,
-          heroY: 148,
-          heroScale: 0.62,
-          titleY: 276,
-          titleSize: 48,
-          subtitleY: 342,
-          legendY: 390,
-          bestY: 438,
-          missionY: 506,
-          ruleY: 562,
-          startY: 626,
-          secondaryY: 698,
-          footerY: 784,
+          heroY: 136,
+          heroScale: 0.54,
+          titleY: 252,
+          titleSize: 44,
+          subtitleY: 304,
+          legendY: 356,
+          bestY: 408,
+          missionY: 472,
+          ruleY: 526,
+          startY: 596,
+          secondaryY: 670,
+          footerY: 780,
         };
   }
 
   private createMenuLegend(y: number, compact: boolean) {
     const group = this.add.container(GAME_WIDTH / 2, y);
     const items = [
-      { icon: '💵', labelTop: '현금', labelBottom: '획득', color: PALETTE.green },
-      { icon: '💳', labelTop: '고지서', labelBottom: '회피', color: PALETTE.red },
-      { icon: '⚡', labelTop: '아슬', labelBottom: '회피', color: PALETTE.gold },
+      { icon: '💵', label: '현금', color: PALETTE.green },
+      { icon: '💳', label: '회피', color: PALETTE.red },
+      { icon: '⚡', label: '스침', color: PALETTE.gold },
     ];
     const spacing = compact ? 106 : 110;
     const cardWidth = compact ? 98 : 102;
-    const cardHeight = 52;
+    const cardHeight = 42;
 
     items.forEach((item, index) => {
       const x = (index - 1) * spacing;
-      const bg = this.add.rectangle(x, 0, cardWidth, cardHeight, 0x041522, 0.78);
+      const bg = this.add.rectangle(x, 0, cardWidth, cardHeight, 0x041522, 0.72);
       bg.setStrokeStyle(1, item.color, 0.34);
-      const icon = this.add.text(x, -13, item.icon, {
+      const icon = this.add.text(x - 24, 0, item.icon, {
         align: 'center',
         fontFamily: 'Pretendard, Apple Color Emoji, sans-serif',
-        fontSize: compact ? '14px' : '15px',
+        fontSize: compact ? '15px' : '16px',
         fontStyle: '900',
         color: '#f8fbff',
       });
       icon.setOrigin(0.5);
-      const label = this.add.text(x, 12, `${item.labelTop}\n${item.labelBottom}`, {
+      const label = this.add.text(x + 14, 0, item.label, {
         align: 'center',
         fontFamily: 'Pretendard, sans-serif',
-        fontSize: compact ? '10px' : '11px',
+        fontSize: compact ? '12px' : '13px',
         fontStyle: '900',
-        lineSpacing: -2,
         color: '#f8fbff',
-        wordWrap: { width: cardWidth - 12, useAdvancedWrap: false },
+        wordWrap: { width: cardWidth - 42, useAdvancedWrap: false },
       });
       label.setOrigin(0.5);
       group.add([bg, icon, label]);
@@ -2866,33 +2867,36 @@ class CometRushScene extends Phaser.Scene {
     }
 
     const roll = Math.random();
-    const hazardChance = Phaser.Math.Clamp(
-      (0.12 + this.difficulty * 0.022 + tier * 0.033 + stage.hazardBonus + pressure.hazardBonus + (clutch ? 0.045 : 0)) * assist.hazardMultiplier,
-      0.08,
-      0.56,
-    );
-    const pulseChance = hazardChance + (clutch ? 0.055 : 0.075);
-    const powerChance = pulseChance + this.stagePowerItemChance();
-    const boostChance = powerChance + (this.hp <= 1 ? 0.1 : 0.06);
+    const odds = spawnOddsProfile({
+      stageId: stage.id,
+      difficulty: this.difficulty,
+      tier,
+      hp: this.hp,
+      clutch,
+      assistHazardMultiplier: assist.hazardMultiplier,
+      pressureHazardBonus: stage.hazardBonus + pressure.hazardBonus,
+      powerItemChance: this.stagePowerItemChance(),
+    });
 
-    if (roll < hazardChance) {
+    if (roll < odds.hazardChance) {
       this.spawnActor(this.pickHazardKind());
-    } else if (roll < pulseChance) {
+    } else if (roll < odds.pulseChance) {
       this.spawnActor('pulse');
-    } else if (roll < powerChance) {
+    } else if (roll < odds.powerChance) {
       this.spawnActor(this.pickStagePowerItem());
-    } else if (roll < boostChance) {
+    } else if (roll < odds.boostChance) {
       this.spawnActor('boost');
-    } else if (roll > (clutch ? 0.86 : 0.91)) {
+    } else if (roll > odds.coinThreshold) {
       this.spawnActor('coin');
     } else {
       this.spawnActor('shard');
     }
 
-    if (this.actors.length < MAX_ACTORS - 1 && Math.random() < 0.18 + this.difficulty * 0.03 + tier * 0.016 + stage.spawnBonus * 0.5 + pressure.doubleSpawnBonus) {
-      this.time.delayedCall(130, () => {
+    const doubleSpawnChance = Math.min(0.58, 0.2 + this.difficulty * 0.032 + tier * 0.018 + stage.spawnBonus * 0.54 + pressure.doubleSpawnBonus);
+    if (this.actors.length < MAX_ACTORS - 1 && Math.random() < doubleSpawnChance) {
+      this.time.delayedCall(110, () => {
         if (this.phase === 'playing' && this.actors.length < MAX_ACTORS) {
-          this.spawnActor(Math.random() < 0.34 ? this.pickHazardKind() : Math.random() < 0.28 ? this.pickStagePowerItem() : 'shard');
+          this.spawnActor(Math.random() < 0.5 ? this.pickHazardKind() : Math.random() < 0.18 ? this.pickStagePowerItem() : 'shard');
         }
       });
     }
@@ -2978,10 +2982,11 @@ class CometRushScene extends Phaser.Scene {
       (this.isHazard(kind) ? slowFactor : 1);
     const juice = actorJuiceProfile(kind, this.currentStage().id, this.actors.length);
     const baseScale = juice.scale;
+    const baseRadius = this.isHazard(kind) ? (kind === 'rent' ? 36 : kind === 'tax' ? 34 : kind === 'sub' ? 25 : 31) : this.isPowerItem(kind) ? 28 : kind === 'pulse' ? 25 : kind === 'boost' ? 23 : 20;
     const actor: Actor = {
       kind,
       image,
-      radius: this.isHazard(kind) ? (kind === 'tax' ? 34 : 30) : this.isPowerItem(kind) ? 28 : kind === 'pulse' ? 26 : kind === 'boost' ? 24 : 21,
+      radius: Math.round(baseRadius * Phaser.Math.Clamp(baseScale, 0.82, 1.32)),
       speed: Math.min(MAX_ACTOR_SPEED, baseSpeed),
       value: Math.round(baseValue * rewardMultiplier),
       wobble: Phaser.Math.FloatBetween(0.014, 0.031),
@@ -3140,6 +3145,7 @@ class CometRushScene extends Phaser.Scene {
       this.combo = comboAlive ? this.combo + 1 : 1;
       this.maxCombo = Math.max(this.maxCombo, this.combo);
       this.lastCollectMs = now;
+      this.lastComboPulse = now;
     }
 
     const rhythm = comboRhythmProfile(Math.max(1, this.combo));
@@ -3485,17 +3491,22 @@ class CometRushScene extends Phaser.Scene {
 
     if (this.phase === 'playing' && this.combo > 0) {
       const liveLabel = this.combo >= 24 ? `FEVER ${this.combo}` : this.combo >= 8 ? `${this.combo} COMBO` : `${this.combo} COMBO`;
+      const pulseAge = Math.max(0, this.time.now - this.lastComboPulse);
+      const pulse = pulseAge < 220 ? 1 - pulseAge / 220 : 0;
+      const baseScale = 0.9 + Math.min(0.16, this.combo * 0.003);
       this.centerComboLiveText.setText(liveLabel);
       this.centerComboLiveText.setVisible(true);
       this.centerComboLiveText.setActive(true);
       this.centerComboLiveText.setOrigin(0.5, 0.5);
-      this.centerComboLiveText.setPosition(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 96);
+      this.centerComboLiveText.setPosition(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 94 - pulse * 7);
       this.centerComboLiveText.setDepth(112);
-      this.centerComboLiveText.setAlpha(0.92);
-      this.centerComboLiveText.setScale(0.92 + Math.min(0.16, this.combo * 0.003));
+      this.centerComboLiveText.setAlpha(0.76 + pulse * 0.2);
+      this.centerComboLiveText.setScale(baseScale + pulse * (this.combo >= 24 ? 0.34 : 0.24));
+      this.centerComboLiveText.setAngle(pulse > 0 ? Math.sin(pulseAge * 0.06) * 2.4 : 0);
       this.centerComboLiveText.setColor(this.combo >= 24 ? '#fff4d8' : this.combo >= 8 ? '#9defff' : '#66ffc2');
     } else {
       this.centerComboLiveText.setAlpha(0);
+      this.centerComboLiveText.setAngle(0);
       this.centerComboLiveText.setVisible(false);
     }
   }
@@ -4728,7 +4739,8 @@ class CometRushScene extends Phaser.Scene {
 
   private stagePowerItemChance() {
     const stage = this.currentStage().id;
-    return Phaser.Math.Clamp(0.07 + stage * 0.011 + (this.hp <= 1 ? 0.04 : 0), 0.08, 0.16);
+    const clutchSupport = this.hp <= 1 ? 0.025 : 0;
+    return Phaser.Math.Clamp(0.035 + stage * 0.006 + clutchSupport, 0.04, 0.085);
   }
 
   private pickStagePowerItem(): ActorKind {
@@ -4736,22 +4748,22 @@ class CometRushScene extends Phaser.Scene {
     const roll = Math.random();
 
     if (stage <= 1) {
-      return roll < 0.42 ? 'magnetItem' : roll < 0.72 ? 'shieldItem' : 'freezeItem';
+      return roll < 0.34 ? 'magnetItem' : roll < 0.68 ? 'shieldItem' : 'freezeItem';
     }
 
     if (stage === 2) {
-      return roll < 0.36 ? 'boosterItem' : roll < 0.62 ? 'magnetItem' : roll < 0.82 ? 'shieldItem' : 'autopilotItem';
+      return roll < 0.38 ? 'boosterItem' : roll < 0.62 ? 'shieldItem' : roll < 0.82 ? 'magnetItem' : 'freezeItem';
     }
 
     if (stage === 3) {
-      return roll < 0.34 ? 'shieldItem' : roll < 0.58 ? 'autopilotItem' : roll < 0.8 ? 'droneItem' : 'freezeItem';
+      return roll < 0.36 ? 'shieldItem' : roll < 0.62 ? 'droneItem' : roll < 0.82 ? 'freezeItem' : 'autopilotItem';
     }
 
     if (stage === 4) {
-      return roll < 0.32 ? 'autopilotItem' : roll < 0.56 ? 'droneItem' : roll < 0.78 ? 'magnetItem' : 'freezeItem';
+      return roll < 0.36 ? 'droneItem' : roll < 0.62 ? 'freezeItem' : roll < 0.84 ? 'magnetItem' : 'autopilotItem';
     }
 
-    return roll < 0.24 ? 'boosterItem' : roll < 0.46 ? 'droneItem' : roll < 0.68 ? 'autopilotItem' : roll < 0.84 ? 'shieldItem' : 'freezeItem';
+    return roll < 0.3 ? 'boosterItem' : roll < 0.56 ? 'droneItem' : roll < 0.76 ? 'shieldItem' : roll < 0.9 ? 'freezeItem' : 'autopilotItem';
   }
 
   private pickHazardKind(): ActorKind {
@@ -4929,7 +4941,7 @@ class CometRushScene extends Phaser.Scene {
       this.playTone([392, 523, 784], 0.05, 0.08, 'triangle');
       this.haptic('success');
     } else if (kind === 'autopilotItem') {
-      this.autopilotMs = this.stackPowerDuration(this.autopilotMs, 4400, 9000);
+      this.autopilotMs = this.stackPowerDuration(this.autopilotMs, 2600, 5200);
       this.popText(x, y - 34, `오토파일럿 ${(this.autopilotMs / 1000).toFixed(1)}초`, '#cfc4ff');
       this.playTone([330, 494, 659, 988], 0.035, 0.075, 'square');
       this.haptic('softMedium');
@@ -5008,7 +5020,7 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private magnetRange() {
-    return (this.feverMs > 0 ? 126 : 82) + this.upgrades.magnet * 24 + this.save.meta.magnet * 7 + (this.hasEvolution('autoRefund') ? 28 : 0) + (this.magnetMs > 0 ? 160 : 0);
+    return (this.feverMs > 0 ? 112 : 70) + this.upgrades.magnet * 20 + this.save.meta.magnet * 5 + (this.hasEvolution('autoRefund') ? 22 : 0) + (this.magnetMs > 0 ? 112 : 0);
   }
 
   private metaLevelLabel() {
