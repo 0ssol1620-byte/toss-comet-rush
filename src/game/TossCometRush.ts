@@ -1253,32 +1253,32 @@ class CometRushScene extends Phaser.Scene {
     const group = this.add.container(GAME_WIDTH / 2, y);
     const items = [
       { icon: '💵', label: '현금', color: PALETTE.green },
-      { icon: '💳', label: '회피', color: PALETTE.red },
+      { icon: '💳', label: '피해', color: PALETTE.red },
       { icon: '⚡', label: '아슬', color: PALETTE.gold },
     ];
     const spacing = compact ? 106 : 110;
     const cardWidth = compact ? 98 : 102;
-    const cardHeight = 42;
+    const cardHeight = 50;
 
     items.forEach((item, index) => {
       const x = (index - 1) * spacing;
       const bg = this.add.rectangle(x, 0, cardWidth, cardHeight, 0x041522, 0.72);
-      bg.setStrokeStyle(1, item.color, 0.34);
-      const icon = this.add.text(x - 24, 0, item.icon, {
+      bg.setStrokeStyle(1, item.color, 0.38);
+      const icon = this.add.text(x, -12, item.icon, {
         align: 'center',
         fontFamily: 'Pretendard, Apple Color Emoji, sans-serif',
-        fontSize: compact ? '15px' : '16px',
+        fontSize: compact ? '16px' : '17px',
         fontStyle: '900',
         color: '#f8fbff',
       });
       icon.setOrigin(0.5);
-      const label = this.add.text(x + 14, 0, item.label, {
+      const label = this.add.text(x, 13, item.label, {
         align: 'center',
         fontFamily: 'Pretendard, sans-serif',
-        fontSize: compact ? '12px' : '13px',
+        fontSize: compact ? '14px' : '15px',
         fontStyle: '900',
         color: '#f8fbff',
-        wordWrap: { width: cardWidth - 42, useAdvancedWrap: false },
+        wordWrap: { width: cardWidth - 12, useAdvancedWrap: false },
       });
       label.setOrigin(0.5);
       group.add([bg, icon, label]);
