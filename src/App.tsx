@@ -72,7 +72,7 @@ export default function App() {
   }, []);
 
   return (
-    <main className="app-shell" aria-label="월급 방어전 게임">
+    <main className="app-shell" aria-label="월급 지키기 게임">
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
       <div ref={gameRootRef} className="game-root" />

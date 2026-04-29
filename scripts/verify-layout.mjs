@@ -166,13 +166,19 @@ assert(source.includes("this.renderPauseLayer();"), 'pause overlay is not implem
 assert(source.includes("this.showUpgradeChoice"), 'run upgrade choice is not implemented');
 assert(source.includes("meta_upgrade_buy"), 'meta progression analytics are not implemented');
 assert(source.includes("'rent' | 'tax' | 'sub'"), 'expanded financial hazard types are not implemented');
-assert(source.includes("BUILD_VERSION = 'v16c-focus-difficulty-juice'"), 'source build stamp is not v16c-focus-difficulty-juice');
+assert(source.includes("BUILD_VERSION = 'v17-premium-salary-keeper'"), 'source build stamp is not v17-premium-salary-keeper');
+assert(source.includes("'월급 지키기'"), 'primary game title should be 월급 지키기');
+assert(!source.includes("'월급 방어전'"), 'old primary game title 월급 방어전 remains in source');
+assert(source.includes('createPremiumMenuBackdrop'), 'premium landing backdrop is not implemented');
+assert(source.includes('createPremiumMetricPill'), 'premium landing metric pills are not implemented');
+assert(source.includes('월급 세이프티 스코어'), 'premium fintech score chip is missing');
+assert(source.includes('방어전보다 직관적인 월급 지키기'), 'rename rationale marker is missing');
 assert(source.includes('MAX_FRAME_DELTA = 42'), 'frame delta clamp is not implemented');
 assert(source.includes('MAX_ACTORS = 38'), 'active actor cap is not implemented');
 assert(source.includes('MAX_DIFFICULTY = 4.85'), 'difficulty cap is not implemented');
 assert(source.includes('최고 잔고'), 'menu copy should say 최고 잔고');
 assert(source.includes('STAGE ${stage.id} 시작'), 'menu start CTA should be stage-specific');
-assert(source.includes('60초 버티고 잔고를 지켜라'), 'landing subtitle should be focused and short');
+assert(source.includes('60초, 잔고를 잃지 않는 가장 짜릿한 방법'), 'landing subtitle should be premium and focused');
 assert(source.includes('경보: 50,000원마다 속도 상승'), 'menu should explain alert consequence compactly');
 assert(!source.includes('최고잔고 '), 'old menu copy 최고잔고 remains');
 assert(!source.includes('연습 다시보기'), 'old tutorial CTA remains');
@@ -223,7 +229,9 @@ for (const target of exportsToCheck) {
   }
 
   const html = await readFile(target, 'utf8');
-  assert(html.includes('v16c-focus-difficulty-juice'), `export ${target} does not contain v16c-focus-difficulty-juice stamp`);
+  assert(html.includes('v17-premium-salary-keeper'), `export ${target} does not contain v17-premium-salary-keeper stamp`);
+  assert(html.includes('월급 지키기'), `export ${target} does not contain 월급 지키기 title`);
+  assert(html.includes('createPremiumMetricPill'), `export ${target} does not contain premium landing helper`);
   assert(html.includes('screen_onboarding'), `export ${target} does not contain onboarding screen analytics`);
   assert(html.includes('onboarding_complete'), `export ${target} does not contain onboarding completion analytics`);
   assert(html.includes('screen_growth'), `export ${target} does not contain growth screen analytics`);

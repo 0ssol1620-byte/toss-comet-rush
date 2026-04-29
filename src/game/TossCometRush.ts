@@ -39,7 +39,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v16c-focus-difficulty-juice';
+const BUILD_VERSION = 'v17-premium-salary-keeper';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
@@ -1027,24 +1027,18 @@ class CometRushScene extends Phaser.Scene {
     const unlockedAchievementCount = Object.values(this.save.achievements).filter(Boolean).length;
     const stageBest = this.normalizedBestByStage()[stage.id - 1] ?? 0;
     const panel = this.add.container(0, 0);
-    const glass = this.add.rectangle(GAME_WIDTH / 2, layout.glassY, 342, layout.glassHeight, 0x06131f, 0.64);
-    glass.setStrokeStyle(1, PALETTE.aqua, 0.28);
-    const orb = this.add.image(GAME_WIDTH / 2, layout.heroY, 'hero-orb').setScale(layout.heroScale).setAlpha(0.72);
+    const premiumBackdrop = this.createPremiumMenuBackdrop(layout);
+    const orb = this.add.image(GAME_WIDTH / 2, layout.heroY, 'hero-orb').setScale(layout.heroScale + 0.1).setAlpha(0.86);
     orb.setBlendMode(Phaser.BlendModes.ADD);
-    const heroShip = this.add.sprite(GAME_WIDTH / 2, layout.heroY, 'ship').setScale(layout.heroScale + 0.1).play('vault-idle');
+    const heroHalo = this.add.ellipse(GAME_WIDTH / 2, layout.heroY + 4, 188, 96, PALETTE.aqua, 0.055);
+    heroHalo.setStrokeStyle(1.5, PALETTE.aqua, 0.26);
+    const heroRing = this.add.ellipse(GAME_WIDTH / 2, layout.heroY + 2, 132, 132, PALETTE.gold, 0);
+    heroRing.setStrokeStyle(1.5, PALETTE.gold, 0.28);
+    const heroShip = this.add.sprite(GAME_WIDTH / 2, layout.heroY, 'ship').setScale(layout.heroScale + 0.13).play('vault-idle');
     heroShip.setTint(this.currentSkin().tint);
-    this.applyGlow(heroShip, PALETTE.aqua, 0.28);
-    const dangerTag = this.add.rectangle(GAME_WIDTH / 2, layout.dangerY, 268, 32, PALETTE.red, 0.72);
-    dangerTag.setStrokeStyle(1, PALETTE.gold, 0.34);
-    const dangerCopy = this.add.text(GAME_WIDTH / 2, layout.dangerY, '월급이 지금 공격받고 있습니다', {
-      align: 'center',
-      fontFamily: 'Pretendard, sans-serif',
-      fontSize: '14px',
-      fontStyle: '900',
-      color: '#fff4d8',
-    });
-    dangerCopy.setOrigin(0.5);
-    const eyebrow = this.add.text(GAME_WIDTH / 2, layout.eyebrowY, 'APPS IN TOSS · SURVIVE PAYDAY', {
+    this.applyGlow(heroShip, PALETTE.aqua, 0.34);
+    const dangerTag = this.createPremiumMetricPill(GAME_WIDTH / 2, layout.dangerY, 292, '월급 세이프티 스코어', `${Math.max(0, this.save.best).toLocaleString('ko-KR')}원 보호`, PALETTE.gold);
+    const eyebrow = this.add.text(GAME_WIDTH / 2, layout.eyebrowY, 'APPS IN TOSS · PAYDAY RUN', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '11px',
@@ -1052,17 +1046,17 @@ class CometRushScene extends Phaser.Scene {
       color: '#86e8ff',
     });
     eyebrow.setOrigin(0.5);
-    const title = this.add.text(GAME_WIDTH / 2, layout.titleY, '월급 방어전', {
+    const title = this.add.text(GAME_WIDTH / 2, layout.titleY, '월급 지키기', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: `${layout.titleSize}px`,
       fontStyle: '900',
-      color: '#f8fbff',
-      shadow: { color: '#00c2ff', blur: 22, fill: true },
+      color: '#ffffff',
+      shadow: { color: '#00c2ff', blur: 28, fill: true },
     });
     title.setOrigin(0.5);
 
-    const subtitle = this.add.text(GAME_WIDTH / 2, layout.subtitleY, '60초 버티고 잔고를 지켜라', {
+    const subtitle = this.add.text(GAME_WIDTH / 2, layout.subtitleY, '60초, 잔고를 잃지 않는 가장 짜릿한 방법', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '13px',
@@ -1123,13 +1117,14 @@ class CometRushScene extends Phaser.Scene {
 
       this.showOnboarding(false);
     });
-    const stageButton = this.createButton(76, layout.secondaryY, 96, 46, '스테이지', PALETTE.violet, () => {
+    const secondaryButtonColor = 0x123f5a;
+    const stageButton = this.createButton(76, layout.secondaryY, 96, 46, '스테이지', secondaryButtonColor, () => {
       this.cycleStage();
     });
-    const growth = this.createButton(195, layout.secondaryY, 96, 46, '능력 강화', PALETTE.green, () => {
+    const growth = this.createButton(195, layout.secondaryY, 96, 46, '능력 강화', secondaryButtonColor, () => {
       this.showGrowthPanel();
     });
-    const board = this.createButton(314, layout.secondaryY, 96, 46, '랭킹 보기', PALETTE.gold, () => {
+    const board = this.createButton(314, layout.secondaryY, 96, 46, '랭킹 보기', secondaryButtonColor, () => {
       this.haptic('tap');
       void this.bridge.openLeaderboard();
     });
@@ -1158,12 +1153,13 @@ class CometRushScene extends Phaser.Scene {
     buildStamp.setVisible(false);
 
     panel.add([
-      glass,
+      premiumBackdrop,
       orb,
+      heroHalo,
+      heroRing,
       heroShip,
       eyebrow,
       dangerTag,
-      dangerCopy,
       title,
       subtitle,
       legend,
@@ -1203,6 +1199,82 @@ class CometRushScene extends Phaser.Scene {
     }
 
     this.bridge.log('screen_menu', { best: this.save.best, stage: stage.id }, 'screen');
+  }
+
+  private createPremiumMenuBackdrop(layout: MenuLayout) {
+    // 방어전보다 직관적인 월급 지키기: 금융 앱처럼 신뢰감 있는 프리미엄 랜딩으로 첫 인상을 만든다.
+    const group = this.add.container(0, 0);
+    const x = GAME_WIDTH / 2;
+    const top = layout.glassY - layout.glassHeight / 2;
+    const g = this.add.graphics();
+
+    g.fillStyle(0x020711, 0.72);
+    g.fillRoundedRect(x - 176, top, 352, layout.glassHeight, 30);
+    g.fillGradientStyle(0x071827, 0x0a2034, 0x06111f, 0x020711, 0.94, 0.9, 0.98, 1);
+    g.fillRoundedRect(x - 170, top + 6, 340, layout.glassHeight - 12, 26);
+    g.lineStyle(1.4, PALETTE.aqua, 0.34);
+    g.strokeRoundedRect(x - 170, top + 6, 340, layout.glassHeight - 12, 26);
+    g.lineStyle(1, PALETTE.gold, 0.12);
+    g.strokeRoundedRect(x - 158, top + 18, 316, layout.glassHeight - 36, 22);
+
+    g.fillStyle(PALETTE.aqua, 0.08);
+    g.fillEllipse(70, top + 138, 240, 170);
+    g.fillStyle(PALETTE.gold, 0.08);
+    g.fillEllipse(314, top + 262, 190, 250);
+    g.fillStyle(PALETTE.violet, 0.075);
+    g.fillEllipse(286, top + layout.glassHeight - 112, 270, 190);
+
+    g.lineStyle(1, 0xffffff, 0.055);
+    for (let i = 0; i < 6; i += 1) {
+      const y = top + 86 + i * 76;
+      g.beginPath();
+      g.moveTo(x - 150, y);
+      g.lineTo(x + 150, y - 18);
+      g.strokePath();
+    }
+
+    g.lineStyle(1.4, PALETTE.aqua, 0.16);
+    g.beginPath();
+    g.moveTo(x - 118, top + 90);
+    g.lineTo(x - 48, top + 66);
+    g.lineTo(x + 36, top + 82);
+    g.lineTo(x + 118, top + 54);
+    g.strokePath();
+
+    const sheen = this.add.rectangle(x + 92, top + layout.glassHeight * 0.34, 18, layout.glassHeight * 0.68, 0xffffff, 0.032);
+    sheen.setRotation(Phaser.Math.DegToRad(17));
+    sheen.setBlendMode(Phaser.BlendModes.ADD);
+
+    group.add([g, sheen]);
+    return group;
+  }
+
+  private createPremiumMetricPill(x: number, y: number, width: number, label: string, value: string, accent: number) {
+    const group = this.add.container(x, y);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x06131f, 0.86);
+    bg.fillRoundedRect(-width / 2, -18, width, 36, 18);
+    bg.fillStyle(accent, 0.08);
+    bg.fillRoundedRect(-width / 2 + 4, -14, width - 8, 28, 14);
+    bg.lineStyle(1, accent, 0.42);
+    bg.strokeRoundedRect(-width / 2, -18, width, 36, 18);
+    const dot = this.add.ellipse(-width / 2 + 18, 0, 8, 8, accent, 0.95);
+    dot.setBlendMode(Phaser.BlendModes.ADD);
+    const labelText = this.add.text(0, -6, label, {
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '10px',
+      fontStyle: '900',
+      color: '#9defff',
+    }).setOrigin(0.5);
+    const valueText = this.add.text(0, 8, value, {
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '12px',
+      fontStyle: '900',
+      color: '#f8fbff',
+    }).setOrigin(0.5);
+    this.fitText(valueText, width - 54, 9);
+    group.add([bg, dot, labelText, valueText]);
+    return group;
   }
 
   private menuLayout(): MenuLayout {
@@ -3820,7 +3892,7 @@ class CometRushScene extends Phaser.Scene {
       fontFamily: 'Pretendard, sans-serif',
       fontSize: height > 50 ? '20px' : '15px',
       fontStyle: '900',
-      color: color === PALETTE.gold || color === PALETTE.green ? '#1a1720' : color === PALETTE.red || color === PALETTE.violet ? '#fff4f4' : '#041522',
+      color: color === PALETTE.gold || color === PALETTE.green ? '#1a1720' : color === PALETTE.red || color === PALETTE.violet || color === 0x123f5a ? '#fff4f4' : '#041522',
     });
     text.setOrigin(0.5);
     this.fitText(text, width - 24, height > 50 ? 16 : 12);
@@ -4580,7 +4652,7 @@ class CometRushScene extends Phaser.Scene {
     this.haptic('success');
     this.bridge.log('share_click', { score: this.score, rank: this.rankLabel(), nearMiss: this.nearMiss }, 'click');
     if (navigator.share != null) {
-      await navigator.share({ title: '월급 방어전', text: copy, url }).catch(() => undefined);
+      await navigator.share({ title: '월급 지키기', text: copy, url }).catch(() => undefined);
     } else if (navigator.clipboard != null) {
       await navigator.clipboard.writeText(`${copy}\n${url}`).catch(() => undefined);
       this.popText(GAME_WIDTH / 2, 706, '공유 문구 복사 완료', '#66ffc2');
