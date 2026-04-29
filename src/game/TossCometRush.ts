@@ -409,6 +409,7 @@ class CometRushScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
   private timerText!: Phaser.GameObjects.Text;
   private comboText!: Phaser.GameObjects.Text;
+  private centerFeedbackText!: Phaser.GameObjects.Text;
   private missionText!: Phaser.GameObjects.Text;
   private overdriveBack!: Phaser.GameObjects.Rectangle;
   private overdriveFill!: Phaser.GameObjects.Rectangle;
@@ -896,6 +897,21 @@ class CometRushScene extends Phaser.Scene {
     });
     this.comboText.setDepth(20);
     this.hudObjects.push(this.comboText);
+
+    this.centerFeedbackText = this.add.text(GAME_WIDTH / 2, PLAYER_Y - 118, '', {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '24px',
+      fontStyle: '900',
+      color: '#fff4d8',
+      stroke: '#001622',
+      strokeThickness: 5,
+      shadow: { color: '#001622', blur: 14, fill: true },
+    });
+    this.centerFeedbackText.setOrigin(0.5, 0.5);
+    this.centerFeedbackText.setDepth(80);
+    this.centerFeedbackText.setAlpha(0);
+    this.hudObjects.push(this.centerFeedbackText);
 
     this.missionText = this.add.text(GAME_WIDTH / 2, 80, '', {
       align: 'center',
@@ -2954,7 +2970,9 @@ class CometRushScene extends Phaser.Scene {
         this.burst(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, this.nearChain >= 3 ? 24 : 14);
         this.shockwave(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, 1.15 + Math.min(1.2, this.nearChain * 0.16));
         this.playTone([juice.pitch, Math.min(1320, juice.pitch * 1.26)], 0.026, 0.07 + Math.min(0.045, this.nearChain * 0.006), 'triangle');
-        this.popText(GAME_WIDTH / 2, PLAYER_Y - 138, this.nearChain >= 2 ? `스쳤다! x${this.nearChain}` : '스쳤다! +각성', this.nearChain >= 3 ? '#ffc857' : '#cfc4ff');
+        const nearLabel = this.nearChain >= 2 ? `스쳤다! x${this.nearChain}` : '스쳤다! +각성';
+        this.showCenterFeedback(nearLabel, this.nearChain >= 3 ? '#ffc857' : '#cfc4ff', PLAYER_Y - 138);
+        this.popText(GAME_WIDTH / 2, PLAYER_Y - 138, nearLabel, this.nearChain >= 3 ? '#ffc857' : '#cfc4ff', true);
         if (this.nearChain === 3 || this.nearChain === 6) {
           this.bridge.log('near_miss_chain', { chain: this.nearChain, score: this.score }, 'event');
         }
@@ -3033,8 +3051,15 @@ class CometRushScene extends Phaser.Scene {
       this.activatePowerItem(actor.kind, actor.image.x, actor.image.y);
     }
 
+    const centerComboColor = this.combo >= 24 ? '#fff4d8' : this.combo >= 8 ? '#9defff' : '#66ffc2';
+    if (this.combo >= 2 && actor.kind !== 'boost') {
+      const comboLabel = this.combo >= 4 ? rhythm.label : `+${actor.value} · ${this.combo} COMBO`;
+      this.showCenterFeedback(comboLabel, centerComboColor, PLAYER_Y - 96);
+      this.popText(GAME_WIDTH / 2, PLAYER_Y - 94, comboLabel, centerComboColor, true);
+    }
+
     if (this.combo >= 4 && this.combo % 4 === 0 && actor.kind !== 'boost') {
-      this.popText(GAME_WIDTH / 2, PLAYER_Y - 94, rhythm.label, this.combo >= 24 ? '#fff4d8' : '#9defff');
+      this.shockwave(GAME_WIDTH / 2, PLAYER_Y - 94, this.combo >= 24 ? PALETTE.gold : PALETTE.sky, 1.4);
     }
 
     if (actor.kind === 'boost') {
@@ -3060,7 +3085,8 @@ class CometRushScene extends Phaser.Scene {
       this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 1.2);
       this.haptic('softMedium');
       this.bridge.log('combo_milestone', { combo: this.combo, score: this.score }, 'event');
-      this.popText(GAME_WIDTH / 2, PLAYER_Y - 110, `COMBO ${this.combo} · +1.2초`, '#ffc857');
+      this.showCenterFeedback(`COMBO ${this.combo} · +1.2초`, '#ffc857', PLAYER_Y - 120);
+      this.popText(GAME_WIDTH / 2, PLAYER_Y - 110, `COMBO ${this.combo} · +1.2초`, '#ffc857', true);
       this.tweens.add({
         targets: [this.timerText, this.scoreText],
         scale: 1.09,
@@ -3415,8 +3441,47 @@ class CometRushScene extends Phaser.Scene {
     }
   }
 
-  private popText(x: number, y: number, label: string, color = '#f8fbff') {
-    if (!this.canEmitEffect(1)) {
+  private showCenterFeedback(label: string, color = '#fff4d8', y = PLAYER_Y - 118) {
+    if (!this.centerFeedbackText?.active) {
+      return;
+    }
+    const fontSize = label.includes('FEVER') ? '30px' : label.includes('COMBO') || label.includes('스쳤다') ? '26px' : '22px';
+    this.centerFeedbackText.setStyle({
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize,
+      fontStyle: '900',
+      color,
+      stroke: '#001622',
+      strokeThickness: 5,
+      shadow: { color: '#001622', blur: 14, fill: true },
+    });
+    this.centerFeedbackText.setText(label);
+    this.centerFeedbackText.setOrigin(0.5, 0.5);
+    this.centerFeedbackText.setPosition(GAME_WIDTH / 2, y);
+    this.centerFeedbackText.setDepth(80);
+    this.centerFeedbackText.setAlpha(1);
+    this.centerFeedbackText.setScale(0.88);
+    this.tweens.killTweensOf(this.centerFeedbackText);
+    this.tweens.add({
+      targets: this.centerFeedbackText,
+      scale: 1.08,
+      duration: 72,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: this.centerFeedbackText,
+          y: y - 16,
+          alpha: 0,
+          duration: 520,
+          ease: 'Cubic.easeOut',
+        });
+      },
+    });
+  }
+
+  private popText(x: number, y: number, label: string, color = '#f8fbff', priority = false) {
+    if (!priority && !this.canEmitEffect(1)) {
       return;
     }
 
@@ -3430,9 +3495,10 @@ class CometRushScene extends Phaser.Scene {
     });
     const centeredX = Phaser.Math.Clamp(x, 46, GAME_WIDTH - 46);
     text.setText(label);
+    const fontSize = priority ? (label.includes('FEVER') ? '25px' : label.includes('COMBO') || label.includes('스쳤다') ? '22px' : '18px') : '16px';
     text.setStyle({
       fontFamily: 'Pretendard, sans-serif',
-      fontSize: '16px',
+      fontSize,
       fontStyle: '900',
       color,
       align: 'center',
@@ -3444,7 +3510,7 @@ class CometRushScene extends Phaser.Scene {
     text.setVisible(true);
     text.setActive(true);
     text.setScale(1);
-    text.setDepth(this.growthLayer != null || this.upgradeLayer != null || this.pauseLayer != null ? 60 : 18);
+    text.setDepth(priority ? 64 : this.growthLayer != null || this.upgradeLayer != null || this.pauseLayer != null ? 60 : 18);
     this.tweens.add({
       targets: text,
       y: y - 34,
