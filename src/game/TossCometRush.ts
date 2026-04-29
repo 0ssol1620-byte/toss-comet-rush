@@ -8,6 +8,9 @@ import {
   collectionProgress,
   comboRhythmProfile,
   evolutionHint,
+  skillPressureProfile,
+  upgradeChoiceIndexAt,
+  upgradeChoicePresentation,
   firstRunAssistProfile,
   missionProgress,
   missionRewardState,
@@ -34,7 +37,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v14c-single-combo';
+const BUILD_VERSION = 'v15-upgrade-pressure';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
@@ -423,6 +426,7 @@ class CometRushScene extends Phaser.Scene {
   private onboardingDemoShip?: Phaser.GameObjects.Container;
   private growthLayer?: Phaser.GameObjects.Container;
   private upgradeLayer?: Phaser.GameObjects.Container;
+  private currentUpgradeOptions: UpgradeId[] = [];
   private pauseLayer?: Phaser.GameObjects.Container;
   private gameOverLayer?: Phaser.GameObjects.Container;
   private muteHudLabel?: Phaser.GameObjects.Text;
@@ -781,6 +785,10 @@ class CometRushScene extends Phaser.Scene {
       this.unlockAudio();
       if (this.phase === 'onboarding') {
         this.handleOnboardingPointer('down', pointer);
+        return;
+      }
+      if (this.phase === 'upgrade') {
+        this.handleUpgradePointer(pointer);
         return;
       }
       if (this.phase === 'playing' && pointer.y > SAFE_TOP + 44) {
@@ -2208,13 +2216,32 @@ class CometRushScene extends Phaser.Scene {
     }
 
     this.phase = 'upgrade';
+    this.setGameplayVisible(false);
     this.upgradeLayer?.destroy();
     this.upgradeLayer = undefined;
 
     const options = this.pickUpgradeOptions(3);
+    this.currentUpgradeOptions = options.map((option) => option.id);
+    const layout = upgradeChoicePresentation(GAME_HEIGHT);
     const layer = this.add.container(0, 0);
-    const overlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x02070d, 0.62);
-    const headline = this.add.text(GAME_WIDTH / 2, 164, '월급 생존 선택', {
+    const overlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x02070d, layout.overlayAlpha);
+    overlay.setInteractive();
+    const topChip = this.add.rectangle(GAME_WIDTH / 2, 74, 250, 34, 0x06131f, 0.86);
+    topChip.setStrokeStyle(1, PALETTE.aqua, 0.22);
+    const topText = this.add.text(
+      GAME_WIDTH / 2,
+      74,
+      `현재 ${this.score.toLocaleString('ko-KR')} · 남은 ${this.timeLeft.toFixed(1)}초 · STAGE ${this.currentStage().id}`,
+      {
+        align: 'center',
+        fontFamily: 'Pretendard, sans-serif',
+        fontSize: '11px',
+        fontStyle: '900',
+        color: '#bde6f4',
+      },
+    );
+    topText.setOrigin(0.5);
+    const headline = this.add.text(GAME_WIDTH / 2, layout.titleY, '월급 생존 선택', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '30px',
@@ -2224,7 +2251,7 @@ class CometRushScene extends Phaser.Scene {
     });
     headline.setOrigin(0.5);
 
-    const sub = this.add.text(GAME_WIDTH / 2, 205, `${threshold}초 구간 돌파 · 이번 판 빌드를 고르세요`, {
+    const sub = this.add.text(GAME_WIDTH / 2, layout.subtitleY, `${threshold}초 구간 돌파 · 이번 판 빌드를 고르세요`, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '13px',
@@ -2233,9 +2260,9 @@ class CometRushScene extends Phaser.Scene {
     });
     sub.setOrigin(0.5);
 
-    const cards = options.map((option, index) => this.createUpgradeCard(226 + index * 138, option));
-    layer.add([overlay, headline, sub, ...cards]);
-    layer.setDepth(44);
+    const cards = options.map((option, index) => this.createUpgradeCard(layout.cardStartY + index * layout.cardGap, option, layout));
+    layer.add([overlay, topChip, topText, headline, sub, ...cards]);
+    layer.setDepth(layout.layerDepth);
     layer.setAlpha(0);
     this.upgradeLayer = layer;
 
@@ -2250,14 +2277,27 @@ class CometRushScene extends Phaser.Scene {
     this.bridge.log('upgrade_open', { threshold, options: options.map((option) => option.id).join(',') }, 'event');
   }
 
-  private createUpgradeCard(y: number, option: (typeof UPGRADE_CARDS)[number]) {
+  private handleUpgradePointer(pointer: Phaser.Input.Pointer) {
+    const layout = upgradeChoicePresentation(GAME_HEIGHT);
+    const index = upgradeChoiceIndexAt(layout, pointer.x, pointer.y, this.currentUpgradeOptions.length, GAME_WIDTH);
+    const id = index >= 0 ? this.currentUpgradeOptions[index] : undefined;
+    if (id != null) {
+      this.chooseUpgrade(id);
+    }
+  }
+
+  private createUpgradeCard(y: number, option: (typeof UPGRADE_CARDS)[number], layout: ReturnType<typeof upgradeChoicePresentation>) {
     const evolutionPreview = this.evolutionPreview(option.id);
-    const group = this.add.container(GAME_WIDTH / 2, y + 54);
-    const bg = this.add.rectangle(0, 0, 322, 118, 0x082234, 0.96);
+    const group = this.add.container(GAME_WIDTH / 2, y + layout.cardHeight / 2);
+    const bg = this.add.rectangle(0, 0, layout.cardWidth, layout.cardHeight, 0x082234, 0.96);
     bg.setStrokeStyle(2, evolutionPreview != null ? PALETTE.green : option.color, evolutionPreview != null ? 0.72 : 0.45);
-    const glow = this.add.rectangle(0, 0, 322, 118, evolutionPreview != null ? PALETTE.green : option.color, evolutionPreview != null ? 0.11 : 0.05);
-    const icon = this.add.circle(-128, -22, 22, option.color, 0.96);
-    const iconText = this.add.text(-128, -22, String(this.upgrades[option.id] + 1), {
+    const glow = this.add.rectangle(0, 0, layout.cardWidth, layout.cardHeight, evolutionPreview != null ? PALETTE.green : option.color, evolutionPreview != null ? 0.11 : 0.05);
+    const hit = this.add.rectangle(0, 0, layout.cardWidth + 8, layout.cardHeight + 8, 0xffffff, 0.001);
+    hit.setDepth(20);
+    hit.setInteractive({ useHandCursor: true });
+    const left = -layout.cardWidth / 2;
+    const icon = this.add.circle(left + 34, -20, 21, option.color, 0.96);
+    const iconText = this.add.text(left + 34, -20, String(this.upgrades[option.id] + 1), {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '18px',
@@ -2265,24 +2305,24 @@ class CometRushScene extends Phaser.Scene {
       color: option.color === PALETTE.gold ? '#1a1720' : '#041522',
     });
     iconText.setOrigin(0.5);
-    const title = this.add.text(-88, -32, option.title, {
+    const title = this.add.text(left + 76, -30, option.title, {
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '20px',
       fontStyle: '900',
       color: '#f8fbff',
     });
     title.setOrigin(0, 0.5);
-    this.fitText(title, 198, 14);
-    const subtitle = this.add.text(-88, 4, option.subtitle, {
+    this.fitText(title, layout.cardWidth - 126, 14);
+    const subtitle = this.add.text(left + 76, 3, option.subtitle, {
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '12px',
       lineSpacing: 3,
       color: '#b8d9e7',
-      wordWrap: { width: 224, useAdvancedWrap: true },
+      wordWrap: { width: layout.cardWidth - 116, useAdvancedWrap: true },
     });
     subtitle.setOrigin(0, 0.5);
-    this.fitText(subtitle, 224, 10);
-    const current = this.add.text(118, 38, evolutionPreview == null ? (evolutionHint(option.id, this.upgrades) ?? `Lv.${this.upgrades[option.id]}`) : `EVO ${evolutionPreview.name}`, {
+    this.fitText(subtitle, layout.cardWidth - 116, 10);
+    const current = this.add.text(layout.cardWidth / 2 - 22, layout.cardHeight / 2 - 21, evolutionPreview == null ? (evolutionHint(option.id, this.upgrades) ?? `Lv.${this.upgrades[option.id]}`) : `EVO ${evolutionPreview.name}`, {
       align: 'right',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '12px',
@@ -2290,18 +2330,24 @@ class CometRushScene extends Phaser.Scene {
       color: evolutionPreview == null ? '#ffc857' : '#66ffc2',
     });
     current.setOrigin(1, 0.5);
-    this.fitText(current, 112, 9);
-    group.add([glow, bg, icon, iconText, title, subtitle, current]);
-    group.setSize(322, 118);
-    group.setInteractive(new Phaser.Geom.Rectangle(-161, -59, 322, 118), Phaser.Geom.Rectangle.Contains);
-    group.on('pointerdown', () => {
+    this.fitText(current, 132, 9);
+    const choose = () => {
       this.chooseUpgrade(option.id);
-    });
+    };
+    hit.on('pointerdown', choose);
+    group.add([glow, bg, icon, iconText, title, subtitle, current, hit]);
+    group.setSize(layout.cardWidth, layout.cardHeight);
+    group.setInteractive(new Phaser.Geom.Rectangle(-layout.cardWidth / 2, -layout.cardHeight / 2, layout.cardWidth, layout.cardHeight), Phaser.Geom.Rectangle.Contains);
+    group.on('pointerdown', choose);
 
     return group;
   }
 
   private chooseUpgrade(id: UpgradeId) {
+    if (this.phase !== 'upgrade') {
+      return;
+    }
+
     this.upgrades[id] += 1;
 
     if (id === 'overtime') {
@@ -2321,7 +2367,9 @@ class CometRushScene extends Phaser.Scene {
 
     this.upgradeLayer?.destroy();
     this.upgradeLayer = undefined;
+    this.currentUpgradeOptions = [];
     this.phase = 'playing';
+    this.setGameplayVisible(true);
     this.haptic('success');
     this.playTone([659, 784, 988], 0.04);
     this.popText(this.player.x, this.player.y - 102, `${this.upgradeTitle(id)} Lv.${this.upgrades[id]}`, '#ffc857');
@@ -2748,10 +2796,11 @@ class CometRushScene extends Phaser.Scene {
     const stage = this.currentStage();
     const tier = this.scoreAlertTier();
     const elapsedSeconds = ROUND_SECONDS - this.timeLeft;
+    const pressure = skillPressureProfile({ stageId: stage.id, combo: this.combo, hp: this.hp, elapsedSeconds, score: this.score });
     const startCompression = stage.id >= 2 && elapsedSeconds < 12 ? stage.baseDifficulty * 28 : 0;
     const interval = Math.max(
-      clutch ? 135 : 190,
-      660 - this.difficulty * 105 - tier * 24 - stage.spawnBonus * 180 - startCompression - (this.feverMs > 0 ? 75 : 0) - (clutch ? 95 : 0),
+      clutch ? 120 : 170,
+      625 - this.difficulty * 112 - tier * 29 - stage.spawnBonus * 210 - startCompression - pressure.spawnReductionMs - (this.feverMs > 0 ? 90 : 0) - (clutch ? 115 : 0),
     );
 
     if (this.spawnElapsed < interval) {
@@ -2769,9 +2818,9 @@ class CometRushScene extends Phaser.Scene {
 
     const roll = Math.random();
     const hazardChance = Phaser.Math.Clamp(
-      (0.1 + this.difficulty * 0.018 + tier * 0.028 + stage.hazardBonus + (clutch ? 0.035 : 0)) * assist.hazardMultiplier,
-      0.06,
-      0.48,
+      (0.12 + this.difficulty * 0.022 + tier * 0.033 + stage.hazardBonus + pressure.hazardBonus + (clutch ? 0.045 : 0)) * assist.hazardMultiplier,
+      0.08,
+      0.56,
     );
     const pulseChance = hazardChance + (clutch ? 0.055 : 0.075);
     const powerChance = pulseChance + this.stagePowerItemChance();
@@ -2791,7 +2840,7 @@ class CometRushScene extends Phaser.Scene {
       this.spawnActor('shard');
     }
 
-    if (this.actors.length < MAX_ACTORS - 1 && Math.random() < 0.16 + this.difficulty * 0.025 + tier * 0.012 + stage.spawnBonus * 0.4) {
+    if (this.actors.length < MAX_ACTORS - 1 && Math.random() < 0.18 + this.difficulty * 0.03 + tier * 0.016 + stage.spawnBonus * 0.5 + pressure.doubleSpawnBonus) {
       this.time.delayedCall(130, () => {
         if (this.phase === 'playing' && this.actors.length < MAX_ACTORS) {
           this.spawnActor(Math.random() < 0.34 ? this.pickHazardKind() : Math.random() < 0.28 ? this.pickStagePowerItem() : 'shard');
@@ -2867,13 +2916,16 @@ class CometRushScene extends Phaser.Scene {
     const isFever = this.feverMs > 0;
     const slowFactor = (1 - Math.min(0.28, this.upgrades.slow * 0.09)) * (this.freezeMs > 0 ? 0.48 : 1);
     const speedMultiplier = this.scoreSpeedMultiplier();
+    const elapsedSeconds = ROUND_SECONDS - this.timeLeft;
+    const pressure = skillPressureProfile({ stageId: this.currentStage().id, combo: this.combo, hp: this.hp, elapsedSeconds, score: this.score });
     const rewardMultiplier = this.rewardMultiplier();
     const baseValue = kind === 'coin' ? 220 : kind === 'pulse' ? 90 : kind === 'boost' ? 70 : this.isPowerItem(kind) ? 110 : 55 + this.save.meta.luck * 3;
     const baseSpeed =
       (this.isHazard(kind) ? (kind === 'rent' ? 230 : kind === 'sub' ? 188 : 205) : this.isPowerItem(kind) ? 138 : kind === 'pulse' ? 152 : kind === 'boost' ? 148 : 176) *
       this.difficulty *
       speedMultiplier *
-      (isFever && this.isHazard(kind) ? 0.76 : 1) *
+      (1 + pressure.speedBonus) *
+      (isFever && this.isHazard(kind) ? 0.84 : 1) *
       (this.isHazard(kind) ? slowFactor : 1);
     const juice = actorJuiceProfile(kind, this.currentStage().id, this.actors.length);
     const baseScale = juice.scale;
@@ -3088,8 +3140,6 @@ class CometRushScene extends Phaser.Scene {
         yoyo: true,
         ease: 'Back.easeOut',
       });
-    } else {
-      this.popText(actor.image.x, actor.image.y - 18, `+${actor.value}`);
     }
 
     this.burst(actor.image.x, actor.image.y, this.actorGlowColor(actor.kind), actor.kind === 'pulse' || this.isPowerItem(actor.kind) ? 22 : actor.kind === 'boost' ? 14 : 9);

@@ -38,6 +38,9 @@ const {
   actorJuiceProfile,
   nearMissJuiceProfile,
   comboRhythmProfile,
+  upgradeChoicePresentation,
+  upgradeChoiceIndexAt,
+  skillPressureProfile,
 } = progression;
 
 assert.equal(
@@ -142,5 +145,32 @@ assert.deepEqual(nearMissJuiceProfile(6), { label: '아슬회피 x6', scoreBonus
 assert.deepEqual(comboRhythmProfile(1), { multiplier: 1, beat: 1, pitch: 520, label: '+1 COMBO' });
 assert.deepEqual(comboRhythmProfile(12), { multiplier: 1.6, beat: 4, pitch: 820, label: '12 COMBO!' });
 assert.deepEqual(comboRhythmProfile(30), { multiplier: 2.2, beat: 8, pitch: 1180, label: 'FEVER 30 COMBO!!' });
+
+assert.deepEqual(upgradeChoicePresentation(844), {
+  titleY: 146,
+  subtitleY: 184,
+  cardStartY: 218,
+  cardGap: 132,
+  cardWidth: 334,
+  cardHeight: 112,
+  layerDepth: 140,
+  overlayAlpha: 0.82,
+  hideGameplayHud: true,
+});
+assert.ok(upgradeChoicePresentation(568).cardGap <= 118);
+assert.equal(upgradeChoicePresentation(568).hideGameplayHud, true);
+assert.equal(upgradeChoiceIndexAt(upgradeChoicePresentation(844), 195, 274), 0);
+assert.equal(upgradeChoiceIndexAt(upgradeChoicePresentation(844), 195, 406), 1);
+assert.equal(upgradeChoiceIndexAt(upgradeChoicePresentation(844), 20, 274), -1);
+assert.equal(upgradeChoiceIndexAt(upgradeChoicePresentation(844), 195, 184), -1);
+
+assert.deepEqual(skillPressureProfile({ stageId: 2, combo: 124, hp: 3, elapsedSeconds: 15, score: 67765 }), {
+  spawnReductionMs: 78,
+  hazardBonus: 0.062,
+  speedBonus: 0.12,
+  doubleSpawnBonus: 0.16,
+  label: '실력자 압박',
+});
+assert.equal(skillPressureProfile({ stageId: 1, combo: 3, hp: 1, elapsedSeconds: 8, score: 1000 }).hazardBonus, 0);
 
 console.log('progression tests passed');

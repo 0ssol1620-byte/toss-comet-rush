@@ -333,6 +333,55 @@ export function comboRhythmProfile(combo: number) {
   };
 }
 
+export function upgradeChoicePresentation(gameHeight: number) {
+  const compact = gameHeight <= 620;
+  return {
+    titleY: compact ? 116 : 146,
+    subtitleY: compact ? 148 : 184,
+    cardStartY: compact ? 176 : 218,
+    cardGap: compact ? 116 : 132,
+    cardWidth: compact ? 318 : 334,
+    cardHeight: compact ? 104 : 112,
+    layerDepth: 140,
+    overlayAlpha: 0.82,
+    hideGameplayHud: true,
+  };
+}
+
+export type UpgradeChoicePresentation = ReturnType<typeof upgradeChoicePresentation>;
+
+export function upgradeChoiceIndexAt(layout: UpgradeChoicePresentation, x: number, y: number, count = 3, gameWidth = 390) {
+  const left = gameWidth / 2 - layout.cardWidth / 2;
+  const right = gameWidth / 2 + layout.cardWidth / 2;
+  if (x < left || x > right) {
+    return -1;
+  }
+  for (let index = 0; index < count; index += 1) {
+    const top = layout.cardStartY + index * layout.cardGap;
+    const bottom = top + layout.cardHeight;
+    if (y >= top && y <= bottom) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+export function skillPressureProfile(input: { stageId: number; combo: number; hp: number; elapsedSeconds: number; score: number }) {
+  const skilled = input.elapsedSeconds >= 10 && input.hp >= 2 && (input.combo >= 24 || input.score >= input.stageId * 30000);
+  if (!skilled) {
+    return { spawnReductionMs: 0, hazardBonus: 0, speedBonus: 0, doubleSpawnBonus: 0, label: '' };
+  }
+  const comboTier = input.combo >= 96 ? 4 : input.combo >= 48 ? 3 : input.combo >= 24 ? 2 : 1;
+  const stageTier = Math.max(1, input.stageId);
+  return {
+    spawnReductionMs: Math.min(96, 30 + comboTier * 12 + stageTier * 0),
+    hazardBonus: Math.round(Math.min(0.085, 0.026 + comboTier * 0.009 + stageTier * 0.0) * 1000) / 1000,
+    speedBonus: Math.round(Math.min(0.18, comboTier * 0.03) * 1000) / 1000,
+    doubleSpawnBonus: Math.round(Math.min(0.22, 0.04 + comboTier * 0.03) * 1000) / 1000,
+    label: '실력자 압박',
+  };
+}
+
 export function collectionProgress(input: { unlockedSkins: number; achievements: number; stages: number; evolutions: number }) {
   const total = 8 + 5 + 6 + 3;
   const completed = Math.max(0, input.unlockedSkins) + Math.max(0, input.achievements) + Math.max(0, input.stages) + Math.max(0, input.evolutions);
