@@ -37,7 +37,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v15-upgrade-pressure';
+const BUILD_VERSION = 'v15b-menu-clarity';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
@@ -1056,7 +1056,7 @@ class CometRushScene extends Phaser.Scene {
     });
     title.setOrigin(0.5);
 
-    const subtitle = this.add.text(GAME_WIDTH / 2, layout.subtitleY, '현금은 먹고, 고지서는 피하세요\n가까이 스쳐 피하면 각성 게이지가 더 빨리 찹니다', {
+    const subtitle = this.add.text(GAME_WIDTH / 2, layout.subtitleY, '60초 동안 100,000원 이상 지키세요\n현금 획득 · 고지서 회피 · 아슬 회피로 각성', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '13px',
@@ -1070,7 +1070,7 @@ class CometRushScene extends Phaser.Scene {
 
     const bestPanel = this.add.rectangle(GAME_WIDTH / 2, layout.bestY, 258, 42, 0x0b2536, 0.84);
     bestPanel.setStrokeStyle(1, PALETTE.gold, 0.25);
-    const best = this.add.text(GAME_WIDTH / 2, layout.bestY, `최고잔고 ${this.save.best.toLocaleString('ko-KR')}`, {
+    const best = this.add.text(GAME_WIDTH / 2, layout.bestY, `최고 잔고 ${this.save.best.toLocaleString('ko-KR')}원`, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '16px',
@@ -1085,7 +1085,7 @@ class CometRushScene extends Phaser.Scene {
     const mission = this.add.text(
       GAME_WIDTH / 2,
       layout.missionY,
-      `${this.stageMenuLabel()}\n🔥 연속 ${this.save.streak.current}일 · 주간 ${weekly.completed}/${weekly.total} · 업적 ${unlockedAchievementCount}/5 · 부드러운 모드`,
+      `${this.stageMenuLabel()}\n🔥 연속 접속 ${this.save.streak.current}일 · 이번 주 ${weekly.completed}/${weekly.total} · 업적 ${unlockedAchievementCount}/5`,
       {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
@@ -1097,7 +1097,7 @@ class CometRushScene extends Phaser.Scene {
     mission.setOrigin(0.5);
     this.fitText(mission, 282, 10);
 
-    const ruleStrip = this.add.text(GAME_WIDTH / 2, layout.ruleY, `5만원마다 경보 상승  |  목표 ${stage.targetScore.toLocaleString('ko-KR')}`, {
+    const ruleStrip = this.add.text(GAME_WIDTH / 2, layout.ruleY, `50,000원마다 고지서 속도 상승  |  목표 ${stage.targetScore.toLocaleString('ko-KR')}원`, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '11px',
@@ -1109,7 +1109,7 @@ class CometRushScene extends Phaser.Scene {
     ruleStrip.setOrigin(0.5);
     this.fitText(ruleStrip, 284, 9);
 
-    const start = this.createButton(GAME_WIDTH / 2, layout.startY, 278, 64, this.save.tutorialDone ? '월급 지키기' : '처음 연습하기', PALETTE.aqua, () => {
+    const start = this.createButton(GAME_WIDTH / 2, layout.startY, 278, 64, this.save.tutorialDone ? `STAGE ${stage.id} 시작` : '처음 연습하기', PALETTE.aqua, () => {
       if (this.save.tutorialDone) {
         this.startRound();
         return;
@@ -1117,23 +1117,23 @@ class CometRushScene extends Phaser.Scene {
 
       this.showOnboarding(false);
     });
-    const stageButton = this.createButton(76, layout.secondaryY, 96, 46, `STAGE ${stage.id}`, PALETTE.violet, () => {
+    const stageButton = this.createButton(76, layout.secondaryY, 96, 46, '스테이지', PALETTE.violet, () => {
       this.cycleStage();
     });
-    const growth = this.createButton(195, layout.secondaryY, 96, 46, '성장', PALETTE.green, () => {
+    const growth = this.createButton(195, layout.secondaryY, 96, 46, '능력 강화', PALETTE.green, () => {
       this.showGrowthPanel();
     });
-    const board = this.createButton(314, layout.secondaryY, 96, 46, '랭킹', PALETTE.gold, () => {
+    const board = this.createButton(314, layout.secondaryY, 96, 46, '랭킹 보기', PALETTE.gold, () => {
       this.haptic('tap');
       void this.bridge.openLeaderboard();
     });
     const replayTutorial = this.save.tutorialDone
-      ? this.createButton(GAME_WIDTH / 2, layout.footerY - 36, 168, 42, '연습 다시보기', PALETTE.aqua, () => {
+      ? this.createButton(GAME_WIDTH / 2, layout.footerY - 36, 168, 42, '튜토리얼 다시보기', PALETTE.aqua, () => {
           this.showOnboarding(true);
         })
       : undefined;
 
-    const footer = this.add.text(GAME_WIDTH / 2, layout.footerY, '드래그 이동 · 가까이 피하면 각성 보너스 · 60초 생존', {
+    const footer = this.add.text(GAME_WIDTH / 2, layout.footerY, '드래그 이동 · 아슬 회피로 FEVER 충전 · 잔고 0원 되면 실패', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: layout.compact ? '11px' : '12px',
@@ -1244,9 +1244,9 @@ class CometRushScene extends Phaser.Scene {
   private createMenuLegend(y: number, compact: boolean) {
     const group = this.add.container(GAME_WIDTH / 2, y);
     const items = [
-      { icon: '💵', label: '먹으면 잔고', color: PALETTE.green },
-      { icon: '💳', label: '맞으면 증발', color: PALETTE.red },
-      { icon: '⚡', label: '스치면 각성', color: PALETTE.gold },
+      { icon: '💵', label: '현금 획득', color: PALETTE.green },
+      { icon: '💳', label: '고지서 회피', color: PALETTE.red },
+      { icon: '⚡', label: '아슬 회피', color: PALETTE.gold },
     ];
 
     items.forEach((item, index) => {
@@ -1280,7 +1280,7 @@ class CometRushScene extends Phaser.Scene {
     const nextSkinCopy =
       nextSkin == null
         ? '모든 금고 스킨을 열었습니다'
-        : `다음 스킨: ${nextSkin.name} · 최고잔고 ${nextSkin.unlock.toLocaleString('ko-KR')}`;
+        : `다음 스킨: ${nextSkin.name} · 최고 잔고 ${nextSkin.unlock.toLocaleString('ko-KR')}원`;
     const nextSkinProgress = nextSkin == null ? 1 : Phaser.Math.Clamp(this.save.best / nextSkin.unlock, 0, 1);
     const cost = this.metaUpgradeCost();
     const canUpgrade = this.save.credits >= cost;
@@ -4773,7 +4773,7 @@ class CometRushScene extends Phaser.Scene {
   private stageMenuLabel() {
     const stage = this.currentStage();
     const best = this.normalizedBestByStage()[stage.id - 1] ?? 0;
-    return `STAGE ${stage.id} ${stage.name}\n목표 ${stage.targetScore.toLocaleString('ko-KR')} · 기록 ${best.toLocaleString('ko-KR')}`;
+    return `STAGE ${stage.id} · ${stage.name}\n목표 ${stage.targetScore.toLocaleString('ko-KR')}원 · ${best > 0 ? `스테이지 기록 ${best.toLocaleString('ko-KR')}원` : '스테이지 기록 없음'}`;
   }
 
   private stageHudLabel() {
@@ -4994,7 +4994,7 @@ class CometRushScene extends Phaser.Scene {
       }
     }
 
-    this.popText(GAME_WIDTH / 2, 720, '다음 스킨은 최고잔고를 더 올리면 열립니다', '#ffc857');
+    this.popText(GAME_WIDTH / 2, 720, '다음 스킨은 최고 잔고를 더 올리면 열립니다', '#ffc857');
   }
 
   private calculateCreditsEarned() {

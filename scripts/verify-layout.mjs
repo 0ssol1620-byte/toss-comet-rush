@@ -166,10 +166,16 @@ assert(source.includes("this.renderPauseLayer();"), 'pause overlay is not implem
 assert(source.includes("this.showUpgradeChoice"), 'run upgrade choice is not implemented');
 assert(source.includes("meta_upgrade_buy"), 'meta progression analytics are not implemented');
 assert(source.includes("'rent' | 'tax' | 'sub'"), 'expanded financial hazard types are not implemented');
-assert(source.includes("BUILD_VERSION = 'v15-upgrade-pressure'"), 'source build stamp is not v15-upgrade-pressure');
+assert(source.includes("BUILD_VERSION = 'v15b-menu-clarity'"), 'source build stamp is not v15b-menu-clarity');
 assert(source.includes('MAX_FRAME_DELTA = 42'), 'frame delta clamp is not implemented');
 assert(source.includes('MAX_ACTORS = 38'), 'active actor cap is not implemented');
 assert(source.includes('MAX_DIFFICULTY = 4.85'), 'difficulty cap is not implemented');
+assert(source.includes('최고 잔고'), 'menu copy should say 최고 잔고');
+assert(source.includes('STAGE ${stage.id} 시작'), 'menu start CTA should be stage-specific');
+assert(source.includes('스테이지 기록 없음'), 'menu should clarify empty stage records');
+assert(source.includes('50,000원마다 고지서 속도 상승'), 'menu should explain alert consequence');
+assert(!source.includes('최고잔고 '), 'old menu copy 최고잔고 remains');
+assert(!source.includes('연습 다시보기'), 'old tutorial CTA remains');
 assert(source.includes('createOriginalBgmBuffer'), 'pre-rendered original BGM buffer is not implemented');
 assert(source.includes('showGrowthPanel'), 'growth management panel is not implemented');
 assert(source.includes('fitText'), 'text fitting helper is not implemented');
@@ -202,7 +208,7 @@ for (const target of exportsToCheck) {
   }
 
   const html = await readFile(target, 'utf8');
-  assert(html.includes('v15-upgrade-pressure'), `export ${target} does not contain v15-upgrade-pressure stamp`);
+  assert(html.includes('v15b-menu-clarity'), `export ${target} does not contain v15b-menu-clarity stamp`);
   assert(html.includes('screen_onboarding'), `export ${target} does not contain onboarding screen analytics`);
   assert(html.includes('onboarding_complete'), `export ${target} does not contain onboarding completion analytics`);
   assert(html.includes('screen_growth'), `export ${target} does not contain growth screen analytics`);
