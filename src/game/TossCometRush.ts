@@ -898,7 +898,7 @@ class CometRushScene extends Phaser.Scene {
     this.comboText.setDepth(20);
     this.hudObjects.push(this.comboText);
 
-    this.centerFeedbackText = this.add.text(GAME_WIDTH / 2, PLAYER_Y - 118, '', {
+    this.centerFeedbackText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 86, '', {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '24px',
@@ -2971,7 +2971,7 @@ class CometRushScene extends Phaser.Scene {
         this.shockwave(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, 1.15 + Math.min(1.2, this.nearChain * 0.16));
         this.playTone([juice.pitch, Math.min(1320, juice.pitch * 1.26)], 0.026, 0.07 + Math.min(0.045, this.nearChain * 0.006), 'triangle');
         const nearLabel = this.nearChain >= 2 ? `스쳤다! x${this.nearChain}` : '스쳤다! +각성';
-        this.showCenterFeedback(nearLabel, this.nearChain >= 3 ? '#ffc857' : '#cfc4ff', PLAYER_Y - 138);
+        this.showCenterFeedback(nearLabel, this.nearChain >= 3 ? '#ffc857' : '#cfc4ff', GAME_HEIGHT / 2 + 72);
         this.popText(GAME_WIDTH / 2, PLAYER_Y - 138, nearLabel, this.nearChain >= 3 ? '#ffc857' : '#cfc4ff', true);
         if (this.nearChain === 3 || this.nearChain === 6) {
           this.bridge.log('near_miss_chain', { chain: this.nearChain, score: this.score }, 'event');
@@ -3052,9 +3052,9 @@ class CometRushScene extends Phaser.Scene {
     }
 
     const centerComboColor = this.combo >= 24 ? '#fff4d8' : this.combo >= 8 ? '#9defff' : '#66ffc2';
-    if (this.combo >= 2 && actor.kind !== 'boost') {
+    if (this.combo >= 1 && actor.kind !== 'boost') {
       const comboLabel = this.combo >= 4 ? rhythm.label : `+${actor.value} · ${this.combo} COMBO`;
-      this.showCenterFeedback(comboLabel, centerComboColor, PLAYER_Y - 96);
+      this.showCenterFeedback(comboLabel, centerComboColor, GAME_HEIGHT / 2 + 86);
       this.popText(GAME_WIDTH / 2, PLAYER_Y - 94, comboLabel, centerComboColor, true);
     }
 
@@ -3085,7 +3085,7 @@ class CometRushScene extends Phaser.Scene {
       this.timeLeft = Math.min(ROUND_SECONDS, this.timeLeft + 1.2);
       this.haptic('softMedium');
       this.bridge.log('combo_milestone', { combo: this.combo, score: this.score }, 'event');
-      this.showCenterFeedback(`COMBO ${this.combo} · +1.2초`, '#ffc857', PLAYER_Y - 120);
+      this.showCenterFeedback(`COMBO ${this.combo} · +1.2초`, '#ffc857', GAME_HEIGHT / 2 + 62);
       this.popText(GAME_WIDTH / 2, PLAYER_Y - 110, `COMBO ${this.combo} · +1.2초`, '#ffc857', true);
       this.tweens.add({
         targets: [this.timerText, this.scoreText],
@@ -3441,7 +3441,7 @@ class CometRushScene extends Phaser.Scene {
     }
   }
 
-  private showCenterFeedback(label: string, color = '#fff4d8', y = PLAYER_Y - 118) {
+  private showCenterFeedback(label: string, color = '#fff4d8', y = GAME_HEIGHT / 2 + 86) {
     if (!this.centerFeedbackText?.active) {
       return;
     }
@@ -3459,7 +3459,9 @@ class CometRushScene extends Phaser.Scene {
     this.centerFeedbackText.setText(label);
     this.centerFeedbackText.setOrigin(0.5, 0.5);
     this.centerFeedbackText.setPosition(GAME_WIDTH / 2, y);
-    this.centerFeedbackText.setDepth(80);
+    this.centerFeedbackText.setVisible(true);
+    this.centerFeedbackText.setActive(true);
+    this.centerFeedbackText.setDepth(90);
     this.centerFeedbackText.setAlpha(1);
     this.centerFeedbackText.setScale(0.88);
     this.tweens.killTweensOf(this.centerFeedbackText);
@@ -3473,7 +3475,7 @@ class CometRushScene extends Phaser.Scene {
           targets: this.centerFeedbackText,
           y: y - 16,
           alpha: 0,
-          duration: 520,
+          duration: 920,
           ease: 'Cubic.easeOut',
         });
       },
