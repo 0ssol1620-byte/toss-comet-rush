@@ -160,6 +160,8 @@ checkTouchTargets([
 ]);
 
 const source = await readFile(join(root, 'src', 'game', 'TossCometRush.ts'), 'utf8');
+const readme = await readFile(join(root, 'README.md'), 'utf8');
+const checklist = await readFile(join(root, 'APP_IN_TOSS_RELEASE_CHECKLIST.md'), 'utf8');
 assert(source.includes("'tutorial' | 'onboarding' | 'playing' | 'upgrade' | 'paused'"), 'source phase union does not include onboarding, tutorial, upgrade, and paused');
 assert(source.includes('showOnboarding'), 'interactive onboarding is not implemented');
 assert(source.includes("this.renderPauseLayer();"), 'pause overlay is not implemented');
@@ -179,6 +181,17 @@ assert(source.includes('MAX_DIFFICULTY = 4.85'), 'difficulty cap is not implemen
 assert(source.includes('최고 잔고'), 'menu copy should say 최고 잔고');
 assert(source.includes('STAGE ${stage.id} 시작'), 'menu start CTA should be stage-specific');
 assert(source.includes('60초, 잔고를 잃지 않는 가장 짜릿한 방법'), 'landing subtitle should be premium and focused');
+assert(readme.includes('v17-premium-salary-keeper') && checklist.includes('v17-premium-salary-keeper'), 'README/checklist should use the current v17 build stamp');
+assert(readme.includes('월급 지키기') && checklist.includes('월급 지키기'), 'README/checklist should use 월급 지키기 naming');
+assert(!readme.includes('현재 빌드는 v10 기준입니다') && !checklist.includes('게임 버전: v10'), 'legacy v10 release wording remains in docs');
+assert(source.includes("type Phase = 'menu' | 'stageMap'"), 'stage map should be a real phase, not a stage cycling toast');
+assert(source.includes("screen === 'stageMap'"), 'stage map debug route should exist for browser QA');
+assert(source.includes('private showStageMap()'), 'stage button should open a real stage map screen');
+assert(!source.includes('this.cycleStage();'), 'stage button should not use the old cycleStage placeholder UX');
+assert(source.includes('doubleRewardClaimedThisResult'), 'double reward should have a per-result duplicate guard');
+assert(source.includes('removeEventListener'), 'visibility handler should be removed on scene shutdown/destroy');
+assert(source.includes('isGameplayCallbackSafe'), 'delayed callbacks should use a gameplay phase/scene active guard');
+assert(source.includes('frozenUntil'), 'hazards should track frozenUntil instead of permanently compounding speed');
 assert(source.includes('경보: 50,000원마다 속도 상승'), 'menu should explain alert consequence compactly');
 assert(!source.includes('최고잔고 '), 'old menu copy 최고잔고 remains');
 assert(!source.includes('연습 다시보기'), 'old tutorial CTA remains');

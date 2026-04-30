@@ -8,7 +8,9 @@ import {
   collectionProgress,
   comboCollectionPolicy,
   comboRhythmProfile,
+  doubleRewardAdState,
   evolutionHint,
+  frozenHazardSpeed,
   skillPressureProfile,
   spawnOddsProfile,
   upgradeChoiceIndexAt,
@@ -53,7 +55,7 @@ const ORIGINAL_BGM_RESUME_VOLUME = 0.5;
 const TEST_BGM_VOLUME = 0.92;
 const SFX_VOLUME_MULTIPLIER = 1.22;
 
-type Phase = 'menu' | 'tutorial' | 'onboarding' | 'playing' | 'upgrade' | 'paused' | 'gameover';
+type Phase = 'menu' | 'stageMap' | 'tutorial' | 'onboarding' | 'playing' | 'upgrade' | 'paused' | 'gameover';
 type ActorKind =
   | 'shard'
   | 'hazard'
@@ -99,6 +101,9 @@ type Actor = {
   image: Phaser.GameObjects.Sprite;
   radius: number;
   speed: number;
+  baseSpeed: number;
+  frozenUntil: number;
+  speedMultiplier: number;
   value: number;
   wobble: number;
   nearMissed?: boolean;
@@ -424,6 +429,7 @@ class CometRushScene extends Phaser.Scene {
   private dangerOverlay!: Phaser.GameObjects.Rectangle;
   private hudObjects: Phaser.GameObjects.GameObject[] = [];
   private titleLayer?: Phaser.GameObjects.Container;
+  private stageMapLayer?: Phaser.GameObjects.Container;
   private tutorialLayer?: Phaser.GameObjects.Container;
   private onboardingContent?: Phaser.GameObjects.Container;
   private onboardingDemoShip?: Phaser.GameObjects.Container;
@@ -444,6 +450,11 @@ class CometRushScene extends Phaser.Scene {
   private sfxEnabled = true;
   private hapticEnabled = true;
   private pausedForBackground = false;
+  private readonly visibilityHandler = () => this.handleVisibilityChange();
+  private userReady = false;
+  private doubleRewardClaimedThisResult = false;
+  private doubleRewardAdInFlight = false;
+  private rewardAdsSupported = true;
   private performanceProfile: PerformanceProfile = resolvePerformanceProfile({ saveQuality: 'auto' });
   private hudSnapshot = '';
   private hudLastUpdateMs = 0;
@@ -528,7 +539,18 @@ class CometRushScene extends Phaser.Scene {
     this.showMenu();
     this.parent.dataset.cometReady = 'ready';
     this.applyDebugScreen();
-    this.bridge.identify().then(() => this.bridge.log('identify', { status: 'ready' }, 'info'));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.removeVisibilityHandlers());
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.removeVisibilityHandlers());
+    this.bridge
+      .identify()
+      .then(() => {
+        this.userReady = true;
+        this.bridge.log('identify', { status: 'ready' }, 'info');
+      })
+      .catch(() => {
+        this.userReady = false;
+        this.bridge.log('identify', { status: 'failed' }, 'info');
+      });
     void this.bridge.preloadRewardAd?.('doubleReward');
     void this.bridge.preloadRewardAd?.('revive');
   }
@@ -573,19 +595,30 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private installVisibilityHandlers() {
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        this.pauseAudioForBackground();
-        if (this.phase === 'playing') {
-          this.pausedForBackground = true;
-          this.showPause();
-        }
-        this.bridge.log('app_background', { phase: this.phase }, 'event');
-      } else {
-        this.resumeAudioFromBackground();
-        this.bridge.log('app_foreground', { pausedForBackground: this.pausedForBackground }, 'event');
+    document.removeEventListener('visibilitychange', this.visibilityHandler);
+    document.addEventListener('visibilitychange', this.visibilityHandler);
+  }
+
+  private removeVisibilityHandlers() {
+    document.removeEventListener('visibilitychange', this.visibilityHandler);
+  }
+
+  private handleVisibilityChange() {
+    if (document.hidden) {
+      this.pauseAudioForBackground();
+      if (this.phase === 'playing') {
+        this.pausedForBackground = true;
+        this.showPause();
       }
-    });
+      this.bridge.log('app_background', { phase: this.phase }, 'event');
+    } else {
+      this.resumeAudioFromBackground();
+      this.bridge.log('app_foreground', { pausedForBackground: this.pausedForBackground }, 'event');
+    }
+  }
+
+  private isGameplayCallbackSafe() {
+    return this.phase === 'playing' && this.scene.isActive();
   }
 
   private updateFpsMeter(delta: number) {
@@ -1013,6 +1046,8 @@ class CometRushScene extends Phaser.Scene {
     this.onboardingDemoShip = undefined;
     this.growthLayer?.destroy();
     this.growthLayer = undefined;
+    this.stageMapLayer?.destroy();
+    this.stageMapLayer = undefined;
     this.upgradeLayer?.destroy();
     this.upgradeLayer = undefined;
     this.pauseLayer?.destroy();
@@ -1119,7 +1154,7 @@ class CometRushScene extends Phaser.Scene {
     });
     const secondaryButtonColor = 0x123f5a;
     const stageButton = this.createButton(76, layout.secondaryY, 96, 46, '스테이지', secondaryButtonColor, () => {
-      this.cycleStage();
+      this.showStageMap();
     });
     const growth = this.createButton(195, layout.secondaryY, 96, 46, '능력 강화', secondaryButtonColor, () => {
       this.showGrowthPanel();
@@ -1192,6 +1227,7 @@ class CometRushScene extends Phaser.Scene {
       const reward = this.pendingStreakReward;
       this.pendingStreakReward = 0;
       this.time.delayedCall(380, () => {
+        if (this.phase !== 'menu' || !this.scene.isActive()) return;
         this.popText(GAME_WIDTH / 2, Math.max(140, layout.glassY - layout.glassHeight / 2 + 58), `연속 ${this.save.streak.current}일 출석 +${reward} 코인`, reward >= 500 ? '#ffc857' : '#66ffc2');
         this.haptic(reward >= 250 ? 'confetti' : 'success');
         this.playTone(reward >= 250 ? [659, 880, 1175, 1568] : [659, 880, 1175], 0.055, 0.1, 'triangle');
@@ -1357,6 +1393,121 @@ class CometRushScene extends Phaser.Scene {
     });
 
     return group;
+  }
+
+  private showStageMap() {
+    if (this.phase !== 'menu' && this.phase !== 'stageMap') {
+      return;
+    }
+
+    this.phase = 'stageMap';
+    this.stageMapLayer?.destroy();
+    this.stageMapLayer = undefined;
+    this.growthLayer?.destroy();
+    this.growthLayer = undefined;
+
+    const bestByStage = this.normalizedBestByStage();
+    const layer = this.add.container(0, 0);
+    const overlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x02070d, 0.74);
+    const card = this.add.rectangle(GAME_WIDTH / 2, 424, 348, 696, 0x071927, 0.98);
+    card.setStrokeStyle(1, PALETTE.aqua, 0.36);
+    const title = this.add.text(GAME_WIDTH / 2, 104, '스테이지 맵', {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '29px',
+      fontStyle: '900',
+      color: '#f8fbff',
+      shadow: { color: '#00c2ff', blur: 14, fill: true },
+    });
+    title.setOrigin(0.5);
+    const subtitle = this.add.text(GAME_WIDTH / 2, 142, '해금된 월급 루트를 선택하고 다음 목표를 확인하세요', {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '12px',
+      fontStyle: '900',
+      color: '#9defff',
+    });
+    subtitle.setOrigin(0.5);
+    this.fitText(subtitle, 300, 9);
+
+    const cards: Phaser.GameObjects.GameObject[] = [];
+    STAGES.forEach((stage, index) => {
+      const unlocked = index <= this.save.unlockedStage;
+      const selected = index === this.save.selectedStage;
+      const row = Math.floor(index / 2);
+      const col = index % 2;
+      const x = col === 0 ? 111 : 279;
+      const y = 212 + row * 138;
+      const best = bestByStage[index] ?? 0;
+      const remaining = Math.max(0, stage.targetScore - best);
+      const fill = selected ? 0x123f5a : unlocked ? 0x0a2031 : 0x07111a;
+      const stroke = selected ? PALETTE.gold : unlocked ? PALETTE.aqua : 0x426475;
+      const stageCard = this.add.rectangle(x, y, 154, 116, fill, unlocked ? 0.97 : 0.72);
+      stageCard.setStrokeStyle(selected ? 2 : 1, stroke, selected ? 0.72 : 0.34);
+      stageCard.setInteractive({ useHandCursor: unlocked });
+      stageCard.on('pointerdown', () => {
+        if (!unlocked) {
+          this.haptic('error');
+          this.popText(GAME_WIDTH / 2, 650, `목표까지 ${remaining.toLocaleString('ko-KR')}원`, '#ffc857');
+          return;
+        }
+        this.save.selectedStage = index;
+        this.persistSave();
+        this.haptic('success');
+        this.bridge.log('stage_select', { stage: stage.id, best }, 'event');
+        layer.destroy();
+        this.stageMapLayer = undefined;
+        this.showMenu();
+      });
+      const idText = this.add.text(x - 62, y - 44, `STAGE ${stage.id}`, {
+        fontFamily: 'Pretendard, sans-serif',
+        fontSize: '10px',
+        fontStyle: '900',
+        color: selected ? '#ffc857' : unlocked ? '#9defff' : '#648290',
+      });
+      idText.setOrigin(0, 0.5);
+      const name = this.add.text(x, y - 20, stage.name, {
+        align: 'center',
+        fontFamily: 'Pretendard, sans-serif',
+        fontSize: '14px',
+        fontStyle: '900',
+        color: unlocked ? '#f8fbff' : '#8aa4ad',
+      });
+      name.setOrigin(0.5);
+      this.fitText(name, 130, 10);
+      const status = this.add.text(
+        x,
+        y + 13,
+        unlocked ? `최고 ${best > 0 ? best.toLocaleString('ko-KR') : '기록 없음'}` : `잠김 · ${remaining.toLocaleString('ko-KR')}원 남음`,
+        {
+          align: 'center',
+          fontFamily: 'Pretendard, sans-serif',
+          fontSize: '11px',
+          fontStyle: '900',
+          color: unlocked ? '#cdeffc' : '#ffc857',
+        },
+      );
+      status.setOrigin(0.5);
+      this.fitText(status, 136, 8);
+      const target = this.add.text(x, y + 40, `목표 ${stage.targetScore.toLocaleString('ko-KR')}원`, {
+        align: 'center',
+        fontFamily: 'Pretendard, sans-serif',
+        fontSize: '10px',
+        color: '#7eb5c9',
+      });
+      target.setOrigin(0.5);
+      cards.push(stageCard, idText, name, status, target);
+    });
+
+    const close = this.createButton(GAME_WIDTH / 2, 770, 236, 48, '메뉴로 돌아가기', PALETTE.aqua, () => {
+      layer.destroy();
+      this.stageMapLayer = undefined;
+      this.showMenu();
+    });
+    layer.add([overlay, card, title, subtitle, ...cards, close]);
+    layer.setDepth(52);
+    this.stageMapLayer = layer;
+    this.bridge.log('screen_stage_map', { unlockedStage: this.save.unlockedStage + 1, selectedStage: this.currentStage().id }, 'screen');
   }
 
   private showGrowthPanel() {
@@ -2047,7 +2198,7 @@ class CometRushScene extends Phaser.Scene {
     this.onboardingAdvancing = true;
     this.onboardingStep += 1;
     this.time.delayedCall(delayMs, () => {
-      if (this.phase === 'onboarding') {
+      if (this.phase === 'onboarding' && this.scene.isActive()) {
         this.renderOnboardingStep();
       }
     });
@@ -2067,6 +2218,8 @@ class CometRushScene extends Phaser.Scene {
     this.titleLayer = undefined;
     this.growthLayer?.destroy();
     this.growthLayer = undefined;
+    this.stageMapLayer?.destroy();
+    this.stageMapLayer = undefined;
     this.gameOverLayer?.destroy();
     this.gameOverLayer = undefined;
     this.upgradeLayer?.destroy();
@@ -2165,6 +2318,8 @@ class CometRushScene extends Phaser.Scene {
     this.titleLayer = undefined;
     this.growthLayer?.destroy();
     this.growthLayer = undefined;
+    this.stageMapLayer?.destroy();
+    this.stageMapLayer = undefined;
     this.tutorialLayer?.destroy();
     this.tutorialLayer = undefined;
     this.onboardingContent = undefined;
@@ -2515,6 +2670,7 @@ class CometRushScene extends Phaser.Scene {
 
     for (let i = 0; i < 5; i += 1) {
       this.time.delayedCall(i * 115, () => {
+        if (!this.isGameplayCallbackSafe()) return;
         const x = 46 + i * 74 + Phaser.Math.Between(-12, 12);
         this.spawnActor(kinds[i % kinds.length], Phaser.Math.Clamp(x, 36, GAME_WIDTH - 36));
       });
@@ -2550,6 +2706,7 @@ class CometRushScene extends Phaser.Scene {
 
     for (let index = 0; index < 5; index += 1) {
       this.time.delayedCall(index * 130, () => {
+        if (!this.isGameplayCallbackSafe()) return;
         const offset = (index - 2) * 52;
         const x = Phaser.Math.Clamp(center + offset, 34, GAME_WIDTH - 34);
         if (stage === 1) {
@@ -2586,6 +2743,9 @@ class CometRushScene extends Phaser.Scene {
     this.resultStageCleared = this.score >= stage.targetScore;
     this.resultUnlockedStage = false;
     this.resultCredits = Math.max(this.calculateCreditsEarned(), firstRunAssistProfile(this.roundStartPlays, ROUND_SECONDS - this.timeLeft).minCredits);
+    this.doubleRewardClaimedThisResult = false;
+    this.doubleRewardAdInFlight = false;
+    this.rewardAdsSupported = true;
     this.save.best = Math.max(this.save.best, this.score);
     this.save.bestAlertTier = Math.max(this.save.bestAlertTier, this.bestAlertTierThisRun);
     this.save.bestByStage = this.normalizedBestByStage();
@@ -2616,9 +2776,13 @@ class CometRushScene extends Phaser.Scene {
     }
     this.persistSave();
 
-    void this.bridge.submitScore(this.score).then((status) => {
-      this.bridge.log('leaderboard_submit', { score: this.score, status });
-    });
+    if (this.userReady) {
+      void this.bridge.submitScore(this.score).then((status) => {
+        this.bridge.log('leaderboard_submit', { score: this.score, status });
+      });
+    } else {
+      this.bridge.log('leaderboard_submit', { score: this.score, status: 'skipped_identify_pending' }, 'info');
+    }
 
     if (isRecord && this.save.plays >= 3) {
       void this.bridge.requestReview();
@@ -2829,6 +2993,12 @@ class CometRushScene extends Phaser.Scene {
       return;
     }
 
+    if (screen === 'stageMap') {
+      this.showMenu();
+      this.showStageMap();
+      return;
+    }
+
     if (screen === 'tutorial') {
       this.showTutorial();
       return;
@@ -2967,7 +3137,7 @@ class CometRushScene extends Phaser.Scene {
     const doubleSpawnChance = Math.min(0.58, 0.2 + this.difficulty * 0.032 + tier * 0.018 + stage.spawnBonus * 0.54 + pressure.doubleSpawnBonus);
     if (this.actors.length < MAX_ACTORS - 1 && Math.random() < doubleSpawnChance) {
       this.time.delayedCall(110, () => {
-        if (this.phase === 'playing' && this.actors.length < MAX_ACTORS) {
+        if (this.isGameplayCallbackSafe() && this.actors.length < MAX_ACTORS) {
           this.spawnActor(Math.random() < 0.5 ? this.pickHazardKind() : Math.random() < 0.18 ? this.pickStagePowerItem() : 'shard');
         }
       });
@@ -3060,6 +3230,9 @@ class CometRushScene extends Phaser.Scene {
       image,
       radius: Math.round(baseRadius * Phaser.Math.Clamp(baseScale, 0.82, 1.32)),
       speed: Math.min(MAX_ACTOR_SPEED, baseSpeed),
+      baseSpeed: Math.min(MAX_ACTOR_SPEED, baseSpeed),
+      frozenUntil: 0,
+      speedMultiplier: 1,
       value: Math.round(baseValue * rewardMultiplier),
       wobble: Phaser.Math.FloatBetween(0.014, 0.031),
       juiceScale: baseScale,
@@ -3111,6 +3284,12 @@ class CometRushScene extends Phaser.Scene {
 
     for (const actor of this.actors) {
       const wave = Math.sin((actor.image.y + actor.image.x) * actor.wobble) * (this.isHazard(actor.kind) ? 22 + actor.laneWobble : 9 + actor.laneWobble * 0.35);
+      if (this.isHazard(actor.kind) && actor.frozenUntil > 0 && this.time.now >= actor.frozenUntil) {
+        actor.frozenUntil = 0;
+        actor.speedMultiplier = 1;
+        actor.speed = actor.baseSpeed;
+        actor.image.clearTint();
+      }
       actor.image.y += actor.speed * dt;
       actor.image.x += wave * dt;
       actor.image.rotation += dt * (this.isHazard(actor.kind) ? 1.9 : actor.kind === 'boost' ? 5.4 : 3.8);
@@ -3166,6 +3345,7 @@ class CometRushScene extends Phaser.Scene {
           this.bridge.log('near_miss_chain', { chain: this.nearChain, score: this.score }, 'event');
         }
         this.time.delayedCall(1700, () => {
+          if (!this.isGameplayCallbackSafe()) return;
           this.nearChain = Math.max(0, this.nearChain - 1);
         });
       }
@@ -4740,25 +4920,61 @@ class CometRushScene extends Phaser.Scene {
     return true;
   }
 
+  private doubleRewardBlockLabel(reason: string) {
+    if (reason === 'empty') return '2배 보상은 코인 획득 후 가능해요';
+    if (reason === 'claimed') return '이미 2배 보상을 받았어요';
+    if (reason === 'inFlight') return '광고 보상 처리 중이에요';
+    if (reason === 'limit') return '오늘 2배 보상 한도를 모두 썼어요';
+    if (reason === 'unsupported') return '현재 광고 미지원 환경이에요';
+    return '광고 준비 중이에요';
+  }
+
   private async tryDoubleRewardAd() {
-    if (this.resultCredits <= 0) {
-      this.popText(GAME_WIDTH / 2, 632, '2배 보상은 코인 획득 후 가능해요', '#ffc857');
-      return;
-    }
+    const state = doubleRewardAdState({
+      claimed: this.doubleRewardClaimedThisResult,
+      inFlight: this.doubleRewardAdInFlight,
+      usesToday: this.save.adUses.doubleReward,
+      dailyLimit: 10,
+      supported: this.rewardAdsSupported,
+      resultCredits: this.resultCredits,
+    });
 
-    const result = await this.runRewardAd('doubleReward');
-    if (!result.rewarded) {
+    if (!state.canShow) {
       this.haptic('tickWeak');
-      this.popText(GAME_WIDTH / 2, 632, result.supported ? '광고 보상이 완료되지 않았어요' : '현재 광고 미지원 환경이에요', '#ffc857');
+      this.popText(GAME_WIDTH / 2, 632, this.doubleRewardBlockLabel(state.reason), '#ffc857');
+      this.bridge.log('reward_double_blocked', { reason: state.reason, usesToday: this.save.adUses.doubleReward }, 'event');
       return;
     }
 
-    this.save.credits += this.resultCredits;
-    this.persistSave();
-    this.haptic('confetti');
-    this.playTone([880, 1175, 1568], 0.07, 0.12, 'triangle');
-    this.popText(GAME_WIDTH / 2, 632, `코인 2배 +${this.resultCredits}`, '#66ffc2');
-    this.bridge.log('reward_double_ad_reward', { credits: this.resultCredits }, 'event');
+    this.doubleRewardAdInFlight = true;
+    this.bridge.log('reward_double_offer_show', { credits: this.resultCredits, usesToday: this.save.adUses.doubleReward }, 'event');
+    const creditsToDouble = this.resultCredits;
+
+    try {
+      const result = await this.runRewardAd('doubleReward');
+      this.rewardAdsSupported = result.supported;
+      if (!result.rewarded) {
+        this.haptic('tickWeak');
+        this.popText(GAME_WIDTH / 2, 632, result.supported ? '광고 보상이 완료되지 않았어요' : '현재 광고 미지원 환경이에요', '#ffc857');
+        return;
+      }
+
+      if (this.doubleRewardClaimedThisResult) {
+        this.popText(GAME_WIDTH / 2, 632, '이미 2배 보상을 받았어요', '#ffc857');
+        return;
+      }
+
+      this.doubleRewardClaimedThisResult = true;
+      this.save.adUses.doubleReward += 1;
+      this.save.credits += creditsToDouble;
+      this.persistSave();
+      this.haptic('confetti');
+      this.playTone([880, 1175, 1568], 0.07, 0.12, 'triangle');
+      this.popText(GAME_WIDTH / 2, 632, `코인 2배 +${creditsToDouble}`, '#66ffc2');
+      this.bridge.log('reward_double_ad_reward', { credits: creditsToDouble, usesToday: this.save.adUses.doubleReward }, 'event');
+    } finally {
+      this.doubleRewardAdInFlight = false;
+    }
   }
 
   private rankLabel() {
@@ -4913,7 +5129,10 @@ class CometRushScene extends Phaser.Scene {
 
     const extraHazards = Math.min(4, 1 + Math.floor(tier / 2));
     for (let index = 0; index < extraHazards; index += 1) {
-      this.time.delayedCall(index * 110, () => this.spawnActor(this.pickHazardKind(), Phaser.Math.Between(42, GAME_WIDTH - 42)));
+      this.time.delayedCall(index * 110, () => {
+        if (!this.isGameplayCallbackSafe()) return;
+        this.spawnActor(this.pickHazardKind(), Phaser.Math.Between(42, GAME_WIDTH - 42));
+      });
     }
   }
 
@@ -4981,12 +5200,22 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private freezeHazards() {
+    const nowMs = this.time.now;
     for (const actor of this.actors) {
       if (!this.isHazard(actor.kind)) {
         continue;
       }
 
-      actor.speed *= 0.38;
+      const frozen = frozenHazardSpeed({
+        baseSpeed: actor.baseSpeed,
+        currentFrozenUntil: actor.frozenUntil,
+        nowMs,
+        durationMs: Math.max(1800, this.freezeMs),
+        multiplier: actor.speedMultiplier || 0.38,
+      });
+      actor.frozenUntil = frozen.frozenUntil;
+      actor.speedMultiplier = frozen.multiplier;
+      actor.speed = frozen.speed;
       actor.image.setTint(PALETTE.sky);
       this.tweens.add({
         targets: actor.image,

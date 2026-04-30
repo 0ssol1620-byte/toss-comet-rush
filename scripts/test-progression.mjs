@@ -45,6 +45,8 @@ const {
   comboCollectionPolicy,
   nextComboAfterCollect,
   nextComboAfterMiss,
+  doubleRewardAdState,
+  frozenHazardSpeed,
 } = progression;
 
 assert.equal(
@@ -198,5 +200,30 @@ assert.equal(nextComboAfterCollect({ currentCombo: 7, lastCollectMs: 1000, nowMs
 assert.equal(nextComboAfterMiss({ currentCombo: 12, kind: 'shard' }), 0);
 assert.equal(nextComboAfterMiss({ currentCombo: 12, kind: 'boost' }), 12);
 assert.deepEqual(comboRhythmProfile(30), { multiplier: 2.2, beat: 8, pitch: 1180, label: 'FEVER 30' });
+
+assert.deepEqual(doubleRewardAdState({ claimed: false, usesToday: 0, dailyLimit: 5, supported: true, inFlight: false }), {
+  canShow: true,
+  reason: 'ready',
+});
+assert.deepEqual(doubleRewardAdState({ claimed: true, usesToday: 0, dailyLimit: 5, supported: true, inFlight: false }), {
+  canShow: false,
+  reason: 'claimed',
+});
+assert.deepEqual(doubleRewardAdState({ claimed: false, usesToday: 5, dailyLimit: 5, supported: true, inFlight: false }), {
+  canShow: false,
+  reason: 'limit',
+});
+assert.deepEqual(doubleRewardAdState({ claimed: false, usesToday: 0, dailyLimit: 5, supported: false, inFlight: false }), {
+  canShow: false,
+  reason: 'unsupported',
+});
+assert.deepEqual(doubleRewardAdState({ claimed: false, usesToday: 0, dailyLimit: 5, supported: true, inFlight: true }), {
+  canShow: false,
+  reason: 'inFlight',
+});
+
+assert.equal(frozenHazardSpeed({ baseSpeed: 500, currentFrozenUntil: 0, nowMs: 1000, durationMs: 2100 }).speed, 190);
+assert.equal(frozenHazardSpeed({ baseSpeed: 500, currentFrozenUntil: 3100, nowMs: 1200, durationMs: 2100 }).speed, 190);
+assert.equal(frozenHazardSpeed({ baseSpeed: 500, currentFrozenUntil: 3100, nowMs: 5300, durationMs: 2100 }).speed, 500);
 
 console.log('progression tests passed');

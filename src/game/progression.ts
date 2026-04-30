@@ -318,6 +318,29 @@ export function nextComboAfterMiss(input: { currentCombo: number; kind: ActorJui
   return comboCollectionPolicy(input.kind).resetsComboOnMiss ? 0 : input.currentCombo;
 }
 
+export type DoubleRewardAdReason = 'ready' | 'claimed' | 'limit' | 'unsupported' | 'inFlight' | 'empty';
+
+export function doubleRewardAdState(input: { claimed: boolean; usesToday: number; dailyLimit: number; supported: boolean; inFlight: boolean; resultCredits?: number }) {
+  if ((input.resultCredits ?? 1) <= 0) return { canShow: false, reason: 'empty' as DoubleRewardAdReason };
+  if (input.claimed) return { canShow: false, reason: 'claimed' as DoubleRewardAdReason };
+  if (input.inFlight) return { canShow: false, reason: 'inFlight' as DoubleRewardAdReason };
+  if (input.usesToday >= input.dailyLimit) return { canShow: false, reason: 'limit' as DoubleRewardAdReason };
+  if (!input.supported) return { canShow: false, reason: 'unsupported' as DoubleRewardAdReason };
+  return { canShow: true, reason: 'ready' as DoubleRewardAdReason };
+}
+
+export function frozenHazardSpeed(input: { baseSpeed: number; currentFrozenUntil: number; nowMs: number; durationMs: number; multiplier?: number }) {
+  const multiplier = input.multiplier ?? 0.38;
+  const hasExistingFreeze = input.currentFrozenUntil > 0;
+  const active = !hasExistingFreeze || input.nowMs < input.currentFrozenUntil;
+  const frozenUntil = active ? Math.max(input.currentFrozenUntil, input.nowMs + input.durationMs) : input.currentFrozenUntil;
+  return {
+    frozenUntil,
+    multiplier,
+    speed: active ? Math.round(input.baseSpeed * multiplier * 1000) / 1000 : input.baseSpeed,
+  };
+}
+
 export function actorJuiceProfile(kind: ActorJuiceKind, stageId: number, spawnIndex: number) {
   const baseScale: Record<ActorJuiceKind, number> = {
     shard: 0.94,
