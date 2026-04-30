@@ -18,9 +18,11 @@ import {
   firstRunAssistProfile,
   missionProgress,
   missionRewardState,
+  nearMissGrade,
   nextRuntimeQuality,
   rareEventForRun,
   resultShareCopy,
+  resultVerdict,
   nearMissJuiceProfile,
   resolvePerformanceProfile,
   sfxThrottleAllows,
@@ -55,6 +57,7 @@ const ORIGINAL_BGM_RESUME_VOLUME = 0.5;
 const TEST_BGM_VOLUME = 0.92;
 const SFX_VOLUME_MULTIPLIER = 1.22;
 
+type RewardAdState = 'unsupported' | 'idle' | 'loading' | 'loaded' | 'showing' | 'failed';
 type Phase = 'menu' | 'stageMap' | 'tutorial' | 'onboarding' | 'playing' | 'upgrade' | 'paused' | 'gameover';
 type ActorKind =
   | 'shard'
@@ -143,6 +146,7 @@ type SaveState = {
     headStart: number;
   };
   visualQuality: VisualQuality;
+  showFps: boolean;
   achievements: Record<string, boolean>;
   streak: {
     lastLoginDate: string;
@@ -320,6 +324,7 @@ const DEFAULT_SAVE: SaveState = {
   audio: { musicEnabled: true, sfxEnabled: true, hapticEnabled: true },
   adUses: { date: '', revive: 0, doubleReward: 0, headStart: 0 },
   visualQuality: 'auto',
+  showFps: false,
   achievements: {},
   streak: { lastLoginDate: '', current: 0, best: 0, rewardClaimedDate: '' },
   weekly: { weekKey: '', score: 0, nearMiss: 0, fever: 0, plays: 0, rewardClaimedWeek: '' },
@@ -474,6 +479,8 @@ class CometRushScene extends Phaser.Scene {
   private fpsMinValue = 60;
   private fpsLastLogMs = 0;
   private lowFpsSeconds = 0;
+  private severeLowFpsSeconds = 0;
+  private qaMode = false;
   private lastSfxAt: Record<string, number> = {};
   private roundStartPlays = 0;
   private firstRunMagnetGranted = false;
@@ -526,6 +533,7 @@ class CometRushScene extends Phaser.Scene {
 
   create() {
     this.save = this.loadSave();
+    this.qaMode = new URLSearchParams(window.location.search).get('qa') === '1';
     this.performanceProfile = this.detectPerformanceProfile();
     this.musicEnabled = this.save.audio.musicEnabled;
     this.sfxEnabled = this.save.audio.sfxEnabled;
@@ -628,16 +636,20 @@ class CometRushScene extends Phaser.Scene {
     this.fpsFrames += 1;
     this.fpsMinValue = Math.min(this.fpsMinValue, instantFps);
     this.lowFpsSeconds = instantFps < 45 ? this.lowFpsSeconds + safeDelta / 1000 : Math.max(0, this.lowFpsSeconds - safeDelta / 1600);
+    this.severeLowFpsSeconds = instantFps < 30 ? this.severeLowFpsSeconds + safeDelta / 1000 : Math.max(0, this.severeLowFpsSeconds - safeDelta / 1000);
 
     if (this.fpsAccumMs >= 500) {
       this.fpsValue = Math.round((this.fpsFrames * 1000) / this.fpsAccumMs);
-      this.fpsText?.setText(`FPS ${this.fpsValue} · ${this.performanceProfile.quality}`);
+      const qaLine = this.qaMode
+        ? `FPS ${this.fpsValue}/${Math.round(this.fpsMinValue)} · ${this.performanceProfile.quality}\nactors ${this.actors.length}/${MAX_ACTORS} · pop ${this.effectCountInWindow}/${this.performanceProfile.maxPopupsPerSecond}\nstage ${this.currentStage().id} · diff ${this.difficulty.toFixed(2)} · ad ${this.bridge.getRewardAdState?.('doubleReward') ?? 'n/a'}`
+        : `FPS ${this.fpsValue} · ${this.performanceProfile.quality}`;
+      this.fpsText?.setText(qaLine);
       this.fpsText?.setColor(this.fpsValue < 45 ? '#ff5f6d' : this.fpsValue < 55 ? '#ffc857' : '#66ffc2');
       this.fpsAccumMs = 0;
       this.fpsFrames = 0;
     }
 
-    if (shouldAutoDowngradeQuality({ saveQuality: this.save.visualQuality, lowFpsSeconds: this.lowFpsSeconds, quality: this.performanceProfile.quality })) {
+    if (shouldAutoDowngradeQuality({ saveQuality: this.save.visualQuality, lowFpsSeconds: this.lowFpsSeconds, severeLowFpsSeconds: this.severeLowFpsSeconds, quality: this.performanceProfile.quality })) {
       const nextQuality = nextRuntimeQuality(this.performanceProfile.quality);
       if (nextQuality !== this.performanceProfile.quality) {
         this.save.visualQuality = nextQuality;
@@ -645,6 +657,7 @@ class CometRushScene extends Phaser.Scene {
         this.applyRuntimeQualityProfile();
         this.persistSave();
         this.lowFpsSeconds = 0;
+        this.severeLowFpsSeconds = 0;
         this.popText(GAME_WIDTH / 2, 166, '프레임 안정화 모드 적용', '#ffc857');
         this.bridge.log('fps_auto_quality_downgrade', { fps: this.fpsValue, minFps: Math.round(this.fpsMinValue), quality: nextQuality }, 'event');
       }
@@ -659,7 +672,7 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private applyRuntimeQualityProfile() {
-    const targetAlpha = this.performanceProfile.quality === 'low' ? 0.22 : this.performanceProfile.quality === 'medium' ? 0.36 : 0.5;
+    const targetAlpha = this.performanceProfile.quality === 'ultra-low' ? 0.16 : this.performanceProfile.quality === 'low' ? 0.22 : this.performanceProfile.quality === 'medium' ? 0.36 : 0.5;
     for (const star of this.stars) {
       star.setAlpha(Math.min(star.alpha, targetAlpha));
     }
@@ -1016,8 +1029,8 @@ class CometRushScene extends Phaser.Scene {
     });
     this.hudObjects.push(pauseButton.group);
 
-    if (new URLSearchParams(window.location.search).get('fps') === '1') {
-      this.fpsText = this.add.text(GAME_WIDTH - 18, 144, 'FPS 60', {
+    if (this.qaMode || this.save.showFps || new URLSearchParams(window.location.search).get('fps') === '1') {
+      this.fpsText = this.add.text(GAME_WIDTH - 18, 144, this.qaMode ? 'QA HUD' : 'FPS 60', {
         align: 'right',
         fontFamily: 'Pretendard, sans-serif',
         fontSize: '11px',
@@ -2403,7 +2416,7 @@ class CometRushScene extends Phaser.Scene {
 
     const layer = this.add.container(0, 0);
     const overlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x02070d, 0.54);
-    const card = this.add.rectangle(GAME_WIDTH / 2, 430, 326, 342, 0x071927, 0.97);
+    const card = this.add.rectangle(GAME_WIDTH / 2, 430, 326, 438, 0x071927, 0.97);
     card.setStrokeStyle(1, PALETTE.aqua, 0.34);
     const title = this.add.text(GAME_WIDTH / 2, 300, '일시정지', {
       align: 'center',
@@ -2425,17 +2438,32 @@ class CometRushScene extends Phaser.Scene {
     stats.setOrigin(0.5);
     this.fitText(stats, 280, 10);
 
-    const resume = this.createButton(GAME_WIDTH / 2, 428, 250, 58, '계속하기', PALETTE.aqua, () => {
+    const resume = this.createButton(GAME_WIDTH / 2, 418, 250, 52, '계속하기', PALETTE.aqua, () => {
       this.resumeRound();
     });
-    const sound = this.createButton(GAME_WIDTH / 2, 500, 220, 48, this.muted ? '소리 켜기' : '소리 끄기', PALETTE.gold, () => {
-      this.toggleMute();
+    const bgm = this.createButton(125, 486, 132, 42, `BGM ${this.musicEnabled ? 'ON' : 'OFF'}`, this.musicEnabled ? PALETTE.gold : PALETTE.violet, () => {
+      this.setAudioSetting('music', !this.musicEnabled);
     });
-    const menu = this.createButton(GAME_WIDTH / 2, 570, 220, 48, '처음으로', PALETTE.red, () => {
+    const sfx = this.createButton(265, 486, 132, 42, `SFX ${this.sfxEnabled ? 'ON' : 'OFF'}`, this.sfxEnabled ? PALETTE.gold : PALETTE.violet, () => {
+      this.setAudioSetting('sfx', !this.sfxEnabled);
+    });
+    const haptic = this.createButton(125, 540, 132, 42, `진동 ${this.hapticEnabled ? 'ON' : 'OFF'}`, this.hapticEnabled ? PALETTE.green : PALETTE.violet, () => {
+      this.setAudioSetting('haptic', !this.hapticEnabled);
+    });
+    const fps = this.createButton(265, 540, 132, 42, `FPS ${this.save.showFps ? 'ON' : 'OFF'}`, this.save.showFps ? PALETTE.green : PALETTE.violet, () => {
+      this.save.showFps = !this.save.showFps;
+      this.persistSave();
+      this.bridge.log('setting_fps_toggle', { showFps: this.save.showFps }, 'event');
+      this.renderPauseLayer();
+    });
+    const quality = this.createButton(GAME_WIDTH / 2, 596, 220, 42, `품질 ${this.save.visualQuality.toUpperCase()}`, PALETTE.gold, () => {
+      this.cycleQualitySetting();
+    });
+    const menu = this.createButton(GAME_WIDTH / 2, 654, 220, 44, '처음으로', PALETTE.red, () => {
       this.showMenu();
     });
 
-    layer.add([overlay, card, title, stats, resume, sound, menu]);
+    layer.add([overlay, card, title, stats, resume, bgm, sfx, haptic, fps, quality, menu]);
     layer.setDepth(45);
     this.pauseLayer = layer;
   }
@@ -2451,29 +2479,48 @@ class CometRushScene extends Phaser.Scene {
     this.bridge.log('pause_resume', { score: this.score }, 'event');
   }
 
-  private toggleMute() {
-    this.muted = !this.muted;
-    this.musicEnabled = !this.muted;
-    this.sfxEnabled = !this.muted;
+  private setAudioSetting(kind: 'music' | 'sfx' | 'haptic', enabled: boolean) {
+    if (kind === 'music') this.musicEnabled = enabled;
+    if (kind === 'sfx') this.sfxEnabled = enabled;
+    if (kind === 'haptic') this.hapticEnabled = enabled;
+    this.muted = !this.musicEnabled && !this.sfxEnabled;
     this.save.audio.musicEnabled = this.musicEnabled;
     this.save.audio.sfxEnabled = this.sfxEnabled;
     this.save.audio.hapticEnabled = this.hapticEnabled;
     this.persistSave();
     if (this.testBgm != null) {
-      this.testBgm.muted = this.muted;
+      this.testBgm.muted = !this.musicEnabled;
     }
     if (this.originalBgmGain != null && this.audio != null) {
-      this.originalBgmGain.gain.setTargetAtTime(this.muted || this.testBgmActive ? 0 : ORIGINAL_BGM_VOLUME, this.audio.currentTime, 0.035);
+      this.originalBgmGain.gain.setTargetAtTime(!this.musicEnabled || this.testBgmActive ? 0 : ORIGINAL_BGM_VOLUME, this.audio.currentTime, 0.035);
     }
-    if (!this.muted) {
+    if (enabled && (kind === 'music' || kind === 'sfx')) {
       this.unlockAudio();
       this.playTone([523, 659, 784], 0.045, 0.08, 'triangle');
     }
-    this.bridge.log('audio_toggle', { muted: this.muted }, 'event');
+    this.bridge.log('setting_audio_toggle', { setting: kind, enabled }, 'event');
 
     if (this.phase === 'paused') {
       this.renderPauseLayer();
     }
+  }
+
+  private cycleQualitySetting() {
+    const order: VisualQuality[] = ['auto', 'low', 'medium', 'high'];
+    const currentIndex = order.indexOf(this.save.visualQuality);
+    this.save.visualQuality = order[(currentIndex + 1) % order.length] ?? 'auto';
+    this.performanceProfile = this.detectPerformanceProfile();
+    this.applyRuntimeQualityProfile();
+    this.persistSave();
+    this.bridge.log('setting_quality_toggle', { quality: this.save.visualQuality }, 'event');
+    if (this.phase === 'paused') {
+      this.renderPauseLayer();
+    }
+  }
+
+  private toggleMute() {
+    this.setAudioSetting('music', this.muted);
+    this.setAudioSetting('sfx', this.muted);
   }
 
   private maybeTriggerUpgradeChoice() {
@@ -2872,17 +2919,34 @@ class CometRushScene extends Phaser.Scene {
       credits: this.save.credits,
       nextMetaCost: this.metaUpgradeCost(),
     });
-    const percentile = this.add.text(GAME_WIDTH / 2, 462, `${this.stageResultLabel(resultStage)} · ${retryHook}`, {
+    const verdict = resultVerdict({
+      score: this.score,
+      previousBest: this.resultPreviousBest,
+      nearMiss: this.nearMiss,
+      maxCombo: this.maxCombo,
+      stageCleared: this.resultStageCleared,
+    });
+    const percentile = this.add.text(GAME_WIDTH / 2, 456, verdict, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
-      fontSize: '14px',
+      fontSize: '15px',
       fontStyle: '900',
-      color: '#9defff',
+      color: isRecord ? '#ffc857' : '#9defff',
     });
     percentile.setOrigin(0.5);
-    this.fitText(percentile, 288, 10);
+    this.fitText(percentile, 288, 11);
 
-    const credit = this.add.text(GAME_WIDTH / 2, 498, `월급코인 +${this.resultCredits} · 보유 ${this.save.credits.toLocaleString('ko-KR')}`, {
+    const nextGoal = this.add.text(GAME_WIDTH / 2, 481, `다음 목표 · ${retryHook}`, {
+      align: 'center',
+      fontFamily: 'Pretendard, sans-serif',
+      fontSize: '13px',
+      fontStyle: '900',
+      color: '#cdeffc',
+    });
+    nextGoal.setOrigin(0.5);
+    this.fitText(nextGoal, 288, 9);
+
+    const credit = this.add.text(GAME_WIDTH / 2, 512, `월급코인 +${this.resultCredits} · 보유 ${this.save.credits.toLocaleString('ko-KR')}`, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '15px',
@@ -2892,7 +2956,7 @@ class CometRushScene extends Phaser.Scene {
     credit.setOrigin(0.5);
     this.fitText(credit, 292, 11);
 
-    const mission = this.add.text(GAME_WIDTH / 2, 535, `${this.dailyMissionLabel()}\n주간 ${weeklyStatus.completed}/4${weeklyClaimable ? ' · 보상 대기' : ''} · ${achievementLine} · 연속 ${this.save.streak.current}일`, {
+    const mission = this.add.text(GAME_WIDTH / 2, 548, `${this.dailyMissionLabel()}\n주간 ${weeklyStatus.completed}/4${weeklyClaimable ? ' · 보상 대기' : ''} · ${achievementLine} · 연속 ${this.save.streak.current}일`, {
       align: 'center',
       fontFamily: 'Pretendard, sans-serif',
       fontSize: '12px',
@@ -2946,7 +3010,7 @@ class CometRushScene extends Phaser.Scene {
       this.showMenu();
     });
 
-    layer.add([overlay, card, halo, title, score, detail, rank, percentile, credit, mission, retry, claim, doubleReward, share, board, menu]);
+    layer.add([overlay, card, halo, title, score, detail, rank, percentile, nextGoal, credit, mission, retry, claim, doubleReward, share, board, menu]);
     layer.setDepth(40);
     layer.setAlpha(0);
     this.gameOverLayer = layer;
@@ -3327,27 +3391,39 @@ class CometRushScene extends Phaser.Scene {
         continue;
       }
 
-      if (this.isHazard(actor.kind) && !actor.nearMissed && distance < actor.radius + 64 && distance > actor.radius + 30) {
-        actor.nearMissed = true;
-        this.nearChain = Math.min(9, this.nearChain + 1);
-        this.nearMiss += 1;
-        const juice = nearMissJuiceProfile(this.nearChain);
-        this.overdrive = Math.min(100, this.overdrive + 10 + this.nearChain * 5 + Math.min(18, this.combo) + this.upgrades.rebate * 4);
-        this.score += Math.round((juice.scoreBonus + this.combo * 7 + this.nearChain * 35) * (1 + this.upgrades.rebate * 0.18 + this.save.meta.luck * 0.025));
-        this.haptic(this.nearChain >= 3 ? 'tickMedium' : 'tickWeak');
-        this.cameras.main.shake(juice.freezeMs, juice.shake);
-        this.burst(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, this.nearChain >= 3 ? 24 : 14);
-        this.shockwave(actor.image.x, actor.image.y, this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, 1.15 + Math.min(1.2, this.nearChain * 0.16));
-        this.playTone([juice.pitch, Math.min(1320, juice.pitch * 1.26)], 0.026, 0.07 + Math.min(0.045, this.nearChain * 0.006), 'triangle');
-        const nearLabel = this.nearChain >= 2 ? `스쳤다 x${this.nearChain}` : '스쳤다';
-        this.popText(GAME_WIDTH / 2, PLAYER_Y - 138, nearLabel, this.nearChain >= 3 ? '#ffc857' : '#cfc4ff', false);
-        if (this.nearChain === 3 || this.nearChain === 6) {
-          this.bridge.log('near_miss_chain', { chain: this.nearChain, score: this.score }, 'event');
+      if (this.isHazard(actor.kind) && !actor.nearMissed) {
+        const missMargin = distance - (actor.radius + 24);
+        const grade = nearMissGrade(missMargin);
+        if (grade.grade !== 'none') {
+          actor.nearMissed = true;
+          this.nearChain = Math.min(9, this.nearChain + 1);
+          this.nearMiss += 1;
+          const juice = nearMissJuiceProfile(this.nearChain);
+          this.overdrive = Math.min(100, this.overdrive + grade.feverGain + Math.min(18, this.combo) + this.upgrades.rebate * 4);
+          this.score += Math.round((juice.scoreBonus * grade.scoreMultiplier + this.combo * 7 + this.nearChain * 35) * (1 + this.upgrades.rebate * 0.18 + this.save.meta.luck * 0.025));
+          this.haptic(grade.grade === 'perfect' ? 'softMedium' : this.nearChain >= 3 ? 'tickMedium' : 'tickWeak');
+          this.cameras.main.shake(Math.max(juice.freezeMs, grade.slowMoMs > 0 ? 32 : 0), grade.grade === 'perfect' ? juice.shake * 1.45 : juice.shake);
+          if (grade.grade === 'perfect') {
+            this.cameras.main.zoomTo(1.04, 120, 'Sine.easeOut', true, (_camera, progress) => {
+              if (progress === 1) this.cameras.main.zoomTo(1, 160);
+            });
+          }
+          this.burst(actor.image.x, actor.image.y, grade.grade === 'perfect' ? PALETTE.gold : this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, grade.grade === 'perfect' ? 34 : this.nearChain >= 3 ? 24 : 14);
+          this.shockwave(actor.image.x, actor.image.y, grade.grade === 'perfect' ? PALETTE.gold : this.nearChain >= 3 ? PALETTE.gold : PALETTE.violet, grade.grade === 'perfect' ? 2.1 : 1.15 + Math.min(1.2, this.nearChain * 0.16));
+          this.playTone([juice.pitch, Math.min(1320, juice.pitch * 1.26), Math.min(1480, juice.pitch * 1.42)], 0.028, 0.07 + Math.min(0.045, this.nearChain * 0.006), 'triangle');
+          const nearLabel = grade.grade === 'perfect' ? '말도 안 되는 회피!' : grade.grade === 'great' ? '초근접 회피!' : this.nearChain >= 2 ? `스쳤다 x${this.nearChain}` : '스쳤다';
+          this.popText(GAME_WIDTH / 2, PLAYER_Y - 138, nearLabel, grade.grade === 'perfect' || this.nearChain >= 3 ? '#ffc857' : '#cfc4ff', false);
+          if (grade.grade === 'perfect') {
+            this.bridge.log('near_miss_perfect', { margin: Math.round(missMargin), score: this.score, stage: this.currentStage().id }, 'event');
+          }
+          if (this.nearChain === 3 || this.nearChain === 6) {
+            this.bridge.log('near_miss_chain', { chain: this.nearChain, score: this.score }, 'event');
+          }
+          this.time.delayedCall(1700, () => {
+            if (!this.isGameplayCallbackSafe()) return;
+            this.nearChain = Math.max(0, this.nearChain - 1);
+          });
         }
-        this.time.delayedCall(1700, () => {
-          if (!this.isGameplayCallbackSafe()) return;
-          this.nearChain = Math.max(0, this.nearChain - 1);
-        });
       }
 
       if (!this.isHazard(actor.kind) && distance < actor.radius + 28) {
@@ -4770,6 +4846,7 @@ class CometRushScene extends Phaser.Scene {
           audio: { ...DEFAULT_SAVE.audio, ...saved.audio },
           adUses: { ...DEFAULT_SAVE.adUses, ...saved.adUses },
           visualQuality: saved.visualQuality ?? DEFAULT_SAVE.visualQuality,
+          showFps: saved.showFps ?? DEFAULT_SAVE.showFps,
           achievements: { ...DEFAULT_SAVE.achievements, ...saved.achievements },
           streak: { ...DEFAULT_SAVE.streak, ...saved.streak },
           weekly: { ...DEFAULT_SAVE.weekly, ...saved.weekly },

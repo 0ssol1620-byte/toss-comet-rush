@@ -47,6 +47,9 @@ const {
   nextComboAfterMiss,
   doubleRewardAdState,
   frozenHazardSpeed,
+  nearMissGrade,
+  resultVerdict,
+  rewardAdTransition,
 } = progression;
 
 assert.equal(
@@ -149,7 +152,7 @@ assert.equal(shouldAutoDowngradeQuality({ saveQuality: 'auto', lowFpsSeconds: 4,
 assert.equal(shouldAutoDowngradeQuality({ saveQuality: 'high', lowFpsSeconds: 9, quality: 'high' }), false);
 assert.equal(nextRuntimeQuality('high'), 'medium');
 assert.equal(nextRuntimeQuality('medium'), 'low');
-assert.equal(nextRuntimeQuality('low'), 'low');
+assert.equal(nextRuntimeQuality('low'), 'ultra-low');
 assert.deepEqual(sfxThrottleAllows({}, 'collect', 1000, 38), { allowed: true, last: { collect: 1000 } });
 assert.equal(sfxThrottleAllows({ collect: 1000 }, 'collect', 1020, 38).allowed, false);
 assert.equal(sfxThrottleAllows({ collect: 1000 }, 'collect', 1040, 38).allowed, true);
@@ -225,5 +228,26 @@ assert.deepEqual(doubleRewardAdState({ claimed: false, usesToday: 0, dailyLimit:
 assert.equal(frozenHazardSpeed({ baseSpeed: 500, currentFrozenUntil: 0, nowMs: 1000, durationMs: 2100 }).speed, 190);
 assert.equal(frozenHazardSpeed({ baseSpeed: 500, currentFrozenUntil: 3100, nowMs: 1200, durationMs: 2100 }).speed, 190);
 assert.equal(frozenHazardSpeed({ baseSpeed: 500, currentFrozenUntil: 3100, nowMs: 5300, durationMs: 2100 }).speed, 500);
+
+assert.equal(resolvePerformanceProfile({ deviceMemory: 0.5, hardwareConcurrency: 1, saveQuality: 'auto' }).quality, 'ultra-low');
+assert.deepEqual(nextRuntimeQuality('low'), 'ultra-low');
+assert.deepEqual(nextRuntimeQuality('ultra-low'), 'ultra-low');
+assert.equal(shouldAutoDowngradeQuality({ saveQuality: 'auto', lowFpsSeconds: 2, severeLowFpsSeconds: 2, quality: 'low' }), true);
+assert.equal(shouldAutoDowngradeQuality({ saveQuality: 'auto', lowFpsSeconds: 8, severeLowFpsSeconds: 0, quality: 'ultra-low' }), false);
+
+assert.deepEqual(nearMissGrade(10), { grade: 'perfect', label: '말도 안 되는 회피', feverGain: 30, slowMoMs: 220, scoreMultiplier: 1.65 });
+assert.deepEqual(nearMissGrade(24), { grade: 'great', label: '초근접 회피', feverGain: 18, slowMoMs: 0, scoreMultiplier: 1.28 });
+assert.deepEqual(nearMissGrade(48), { grade: 'normal', label: '가까이 회피', feverGain: 10, slowMoMs: 0, scoreMultiplier: 1 });
+assert.equal(nearMissGrade(88).grade, 'none');
+
+assert.equal(resultVerdict({ score: 100000, previousBest: 90000, nearMiss: 2, maxCombo: 4, stageCleared: false }), '신기록! 월급 방어력 폭발');
+assert.equal(resultVerdict({ score: 80000, previousBest: 90000, nearMiss: 13, maxCombo: 4, stageCleared: false }), '아슬회피 장인급 플레이');
+assert.equal(resultVerdict({ score: 80000, previousBest: 90000, nearMiss: 2, maxCombo: 40, stageCleared: false }), '콤보 루틴 완성');
+assert.equal(resultVerdict({ score: 80000, previousBest: 90000, nearMiss: 2, maxCombo: 4, stageCleared: true }), '스테이지 돌파! 다음 구간 해금');
+
+assert.deepEqual(rewardAdTransition('idle', 'load'), { state: 'loading', canReward: false });
+assert.deepEqual(rewardAdTransition('loaded', 'show'), { state: 'showing', canReward: false });
+assert.deepEqual(rewardAdTransition('showing', 'rewarded'), { state: 'loading', canReward: true });
+assert.deepEqual(rewardAdTransition('showing', 'closed'), { state: 'loading', canReward: false });
 
 console.log('progression tests passed');

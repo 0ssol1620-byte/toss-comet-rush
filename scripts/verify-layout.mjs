@@ -185,6 +185,7 @@ assert(readme.includes('v17-premium-salary-keeper') && checklist.includes('v17-p
 assert(readme.includes('월급 지키기') && checklist.includes('월급 지키기'), 'README/checklist should use 월급 지키기 naming');
 assert(!readme.includes('현재 빌드는 v10 기준입니다') && !checklist.includes('게임 버전: v10'), 'legacy v10 release wording remains in docs');
 assert(source.includes("type Phase = 'menu' | 'stageMap'"), 'stage map should be a real phase, not a stage cycling toast');
+assert(source.includes("type RewardAdState = 'unsupported' | 'idle' | 'loading' | 'loaded' | 'showing' | 'failed'"), 'reward ad state machine type should exist');
 assert(source.includes("screen === 'stageMap'"), 'stage map debug route should exist for browser QA');
 assert(source.includes('private showStageMap()'), 'stage button should open a real stage map screen');
 assert(!source.includes('this.cycleStage();'), 'stage button should not use the old cycleStage placeholder UX');

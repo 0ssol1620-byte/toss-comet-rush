@@ -7,7 +7,7 @@ export type DailyMissionStats = {
   maxCombo: number;
 };
 
-export type VisualQuality = 'auto' | 'low' | 'medium' | 'high';
+export type VisualQuality = 'auto' | 'ultra-low' | 'low' | 'medium' | 'high';
 
 export type PerformanceProfile = {
   quality: Exclude<VisualQuality, 'auto'>;
@@ -41,6 +41,8 @@ export type WeeklyStats = {
 };
 
 export type RareEventId = 'goldenSalary' | 'taxRefundRush' | 'bonusTime' | undefined;
+export type RewardAdState = 'unsupported' | 'idle' | 'loading' | 'loaded' | 'showing' | 'failed';
+export type RewardAdEvent = 'load' | 'loaded' | 'show' | 'rewarded' | 'closed' | 'failed' | 'unsupported';
 
 export const DAILY_MISSION_TARGETS = {
   shards: 90,
@@ -182,8 +184,13 @@ export function resolvePerformanceProfile(input: {
   saveQuality?: VisualQuality;
 }): PerformanceProfile {
   const forced = input.saveQuality !== 'auto' ? input.saveQuality : undefined;
+  const ultraWeakDevice = (input.deviceMemory != null && input.deviceMemory <= 0.75) || (input.hardwareConcurrency != null && input.hardwareConcurrency <= 1);
   const weakDevice = (input.deviceMemory != null && input.deviceMemory <= 2) || (input.hardwareConcurrency != null && input.hardwareConcurrency <= 3);
-  const quality = forced ?? (weakDevice ? 'low' : input.deviceMemory != null && input.deviceMemory >= 6 && (input.hardwareConcurrency ?? 4) >= 6 ? 'high' : 'medium');
+  const quality = forced ?? (ultraWeakDevice ? 'ultra-low' : weakDevice ? 'low' : input.deviceMemory != null && input.deviceMemory >= 6 && (input.hardwareConcurrency ?? 4) >= 6 ? 'high' : 'medium');
+
+  if (quality === 'ultra-low') {
+    return { quality, starCount: 24, speedLineCount: 3, nebulaCount: 0, particleMultiplier: 0.2, maxPopupsPerSecond: 3 };
+  }
 
   if (quality === 'low') {
     return { quality, starCount: 40, speedLineCount: 6, nebulaCount: 1, particleMultiplier: 0.35, maxPopupsPerSecond: 6 };
@@ -279,14 +286,15 @@ export function stageSpeedMultiplier(stage: { speedBonus: number; minStartSpeedM
   return Math.min(maxMultiplier, Math.max(minimum, raw));
 }
 
-export function shouldAutoDowngradeQuality(input: { saveQuality: VisualQuality; lowFpsSeconds: number; quality: Exclude<VisualQuality, 'auto'> }) {
-  return input.saveQuality === 'auto' && input.lowFpsSeconds >= 4 && input.quality !== 'low';
+export function shouldAutoDowngradeQuality(input: { saveQuality: VisualQuality; lowFpsSeconds: number; severeLowFpsSeconds?: number; quality: Exclude<VisualQuality, 'auto'> }) {
+  if (input.saveQuality !== 'auto' || input.quality === 'ultra-low') return false;
+  return (input.severeLowFpsSeconds ?? 0) >= 2 || input.lowFpsSeconds >= 4;
 }
 
 export function nextRuntimeQuality(quality: Exclude<VisualQuality, 'auto'>): Exclude<VisualQuality, 'auto'> {
   if (quality === 'high') return 'medium';
   if (quality === 'medium') return 'low';
-  return 'low';
+  return 'ultra-low';
 }
 
 export function sfxThrottleAllows(last: Record<string, number>, key: string, nowMs: number, minGapMs: number) {
@@ -339,6 +347,33 @@ export function frozenHazardSpeed(input: { baseSpeed: number; currentFrozenUntil
     multiplier,
     speed: active ? Math.round(input.baseSpeed * multiplier * 1000) / 1000 : input.baseSpeed,
   };
+}
+
+export function nearMissGrade(margin: number) {
+  if (margin > 0 && margin < 16) return { grade: 'perfect' as const, label: '말도 안 되는 회피', feverGain: 30, slowMoMs: 220, scoreMultiplier: 1.65 };
+  if (margin > 0 && margin < 32) return { grade: 'great' as const, label: '초근접 회피', feverGain: 18, slowMoMs: 0, scoreMultiplier: 1.28 };
+  if (margin > 0 && margin < 64) return { grade: 'normal' as const, label: '가까이 회피', feverGain: 10, slowMoMs: 0, scoreMultiplier: 1 };
+  return { grade: 'none' as const, label: '', feverGain: 0, slowMoMs: 0, scoreMultiplier: 0 };
+}
+
+export function resultVerdict(input: { score: number; previousBest: number; nearMiss: number; maxCombo: number; stageCleared: boolean }) {
+  if (input.score > input.previousBest) return '신기록! 월급 방어력 폭발';
+  if (input.stageCleared) return '스테이지 돌파! 다음 구간 해금';
+  if (input.nearMiss >= 12) return '아슬회피 장인급 플레이';
+  if (input.maxCombo >= 36) return '콤보 루틴 완성';
+  return '다음 판이면 바로 넘길 수 있어요';
+}
+
+export function rewardAdTransition(state: RewardAdState, event: RewardAdEvent): { state: RewardAdState; canReward: boolean } {
+  if (state === 'unsupported') return { state: 'unsupported', canReward: false };
+  if (event === 'unsupported') return { state: 'unsupported', canReward: false };
+  if (event === 'load') return { state: 'loading', canReward: false };
+  if (event === 'loaded' && state === 'loading') return { state: 'loaded', canReward: false };
+  if (event === 'show' && state === 'loaded') return { state: 'showing', canReward: false };
+  if (event === 'rewarded' && state === 'showing') return { state: 'loading', canReward: true };
+  if ((event === 'closed' || event === 'failed') && state === 'showing') return { state: event === 'failed' ? 'failed' : 'loading', canReward: false };
+  if (event === 'failed') return { state: 'failed', canReward: false };
+  return { state, canReward: false };
 }
 
 export function actorJuiceProfile(kind: ActorJuiceKind, stageId: number, spawnIndex: number) {
