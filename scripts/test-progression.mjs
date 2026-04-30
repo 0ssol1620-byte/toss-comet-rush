@@ -50,6 +50,12 @@ const {
   nearMissGrade,
   resultVerdict,
   rewardAdTransition,
+  activePlayScoreMultiplier,
+  isHeldPowerItem,
+  addHeldItem,
+  consumeHeldItem,
+  autopilotCollisionPolicy,
+  runRankLabel,
 } = progression;
 
 assert.equal(
@@ -249,5 +255,20 @@ assert.deepEqual(rewardAdTransition('idle', 'load'), { state: 'loading', canRewa
 assert.deepEqual(rewardAdTransition('loaded', 'show'), { state: 'showing', canReward: false });
 assert.deepEqual(rewardAdTransition('showing', 'rewarded'), { state: 'loading', canReward: true });
 assert.deepEqual(rewardAdTransition('showing', 'closed'), { state: 'loading', canReward: false });
+
+assert.equal(isHeldPowerItem('magnetItem'), true);
+assert.equal(isHeldPowerItem('shard'), false);
+assert.deepEqual(addHeldItem([undefined, undefined], 'magnetItem'), { slots: ['magnetItem', undefined], added: true, index: 0, reason: 'stored' });
+assert.deepEqual(addHeldItem(['magnetItem', undefined], 'freezeItem'), { slots: ['magnetItem', 'freezeItem'], added: true, index: 1, reason: 'stored' });
+assert.deepEqual(addHeldItem(['magnetItem', 'freezeItem'], 'autopilotItem'), { slots: ['magnetItem', 'freezeItem'], added: false, index: -1, reason: 'full' });
+assert.deepEqual(consumeHeldItem(['magnetItem', 'freezeItem'], 1), { slots: ['magnetItem', undefined], item: 'freezeItem', consumed: true });
+assert.deepEqual(consumeHeldItem(['magnetItem', undefined], 1), { slots: ['magnetItem', undefined], item: undefined, consumed: false });
+assert.deepEqual(autopilotCollisionPolicy(3500), { invincible: true, nearMissScoreMultiplier: 0.5, label: 'AI 방어봇 무적' });
+assert.deepEqual(autopilotCollisionPolicy(0), { invincible: false, nearMissScoreMultiplier: 1, label: 'manual' });
+assert.equal(activePlayScoreMultiplier({ manualInputs: 0, elapsedSeconds: 10 }), 0.34);
+assert.equal(activePlayScoreMultiplier({ manualInputs: 1, elapsedSeconds: 10 }), 0.58);
+assert.equal(activePlayScoreMultiplier({ manualInputs: 12, elapsedSeconds: 10 }), 1);
+assert.equal(runRankLabel({ score: 520000, nearMiss: 0, maxCombo: 0, shards: 0, feverCount: 0, survived: true }), 'RANK A');
+assert.equal(runRankLabel({ score: 520000, nearMiss: 8, maxCombo: 32, shards: 220, feverCount: 4, survived: true }), 'RANK SSS');
 
 console.log('progression tests passed');

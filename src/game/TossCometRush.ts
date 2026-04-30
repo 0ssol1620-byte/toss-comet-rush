@@ -8,6 +8,10 @@ import {
   collectionProgress,
   comboCollectionPolicy,
   comboRhythmProfile,
+  activePlayScoreMultiplier,
+  addHeldItem,
+  autopilotCollisionPolicy,
+  consumeHeldItem,
   doubleRewardAdState,
   evolutionHint,
   frozenHazardSpeed,
@@ -21,6 +25,7 @@ import {
   nearMissGrade,
   nextRuntimeQuality,
   rareEventForRun,
+  runRankLabel,
   resultShareCopy,
   resultVerdict,
   nearMissJuiceProfile,
@@ -34,6 +39,7 @@ import {
   updateStreakState,
   weeklyMissionProgress,
   type PerformanceProfile,
+  type PowerItemKind,
   type VisualQuality,
 } from './progression';
 
@@ -43,7 +49,7 @@ const ROUND_SECONDS = 60;
 const PLAYER_Y = 710;
 const SAFE_TOP = 104;
 const SAVE_KEY = 'salary-defense-save-v1';
-const BUILD_VERSION = 'v18-reward-qa-hardening';
+const BUILD_VERSION = 'v19-item-skill-balance';
 const SCORE_TIER_SIZE = 50000;
 const MAX_ALERT_TIER = 9;
 const MAX_ALERT_SPEED_MULTIPLIER = 2.45;
@@ -431,6 +437,10 @@ class CometRushScene extends Phaser.Scene {
   private overdriveBack!: Phaser.GameObjects.Rectangle;
   private overdriveFill!: Phaser.GameObjects.Rectangle;
   private statusText!: Phaser.GameObjects.Text;
+  private itemSlotGroups: Phaser.GameObjects.Container[] = [];
+  private itemSlotLabels: Phaser.GameObjects.Text[] = [];
+  private itemSlots: [PowerItemKind | undefined, PowerItemKind | undefined] = [undefined, undefined];
+  private manualControlInputs = 0;
   private dangerOverlay!: Phaser.GameObjects.Rectangle;
   private hudObjects: Phaser.GameObjects.GameObject[] = [];
   private titleLayer?: Phaser.GameObjects.Container;
@@ -843,8 +853,9 @@ class CometRushScene extends Phaser.Scene {
         this.handleUpgradePointer(pointer);
         return;
       }
-      if (this.phase === 'playing' && pointer.y > SAFE_TOP + 44) {
+      if (this.phase === 'playing' && pointer.y > SAFE_TOP + 44 && pointer.y < GAME_HEIGHT - 96) {
         this.haptic('tap');
+        this.manualControlInputs += 1;
         this.targetX = Phaser.Math.Clamp(pointer.x, 38, GAME_WIDTH - 38);
       }
     });
@@ -854,7 +865,8 @@ class CometRushScene extends Phaser.Scene {
         this.handleOnboardingPointer('move', pointer);
         return;
       }
-      if (this.phase === 'playing' && pointer.isDown && pointer.y > SAFE_TOP + 44) {
+      if (this.phase === 'playing' && pointer.isDown && pointer.y > SAFE_TOP + 44 && pointer.y < GAME_HEIGHT - 96) {
+        this.manualControlInputs += 1;
         this.targetX = Phaser.Math.Clamp(pointer.x, 38, GAME_WIDTH - 38);
       }
     });
@@ -1043,6 +1055,15 @@ class CometRushScene extends Phaser.Scene {
       this.fpsText.setDepth(22);
       this.hudObjects.push(this.fpsText);
     }
+
+    this.itemSlotGroups = [];
+    this.itemSlotLabels = [];
+    const slotA = this.createHudButton(103, GAME_HEIGHT - 54, 142, 54, 'SLOT A\n비어있음', () => this.useHeldItem(0));
+    const slotB = this.createHudButton(GAME_WIDTH - 103, GAME_HEIGHT - 54, 142, 54, 'SLOT B\n비어있음', () => this.useHeldItem(1));
+    this.itemSlotGroups.push(slotA.group, slotB.group);
+    this.itemSlotLabels.push(slotA.label, slotB.label);
+    this.hudObjects.push(slotA.group, slotB.group);
+    this.updateItemSlotHud();
 
     this.setGameplayVisible(false);
   }
@@ -2352,6 +2373,9 @@ class CometRushScene extends Phaser.Scene {
     this.nearMiss = 0;
     this.feverCount = 0;
     this.upgrades = { ...DEFAULT_RUNTIME_UPGRADES };
+    this.manualControlInputs = 0;
+    this.itemSlots = [undefined, undefined];
+    this.updateItemSlotHud();
     this.activeEvolutions.clear();
     this.upgradeThresholds = [45, 30, 15];
     this.stormThresholds = [42, 24, 9];
@@ -3399,8 +3423,10 @@ class CometRushScene extends Phaser.Scene {
           this.nearChain = Math.min(9, this.nearChain + 1);
           this.nearMiss += 1;
           const juice = nearMissJuiceProfile(this.nearChain);
-          this.overdrive = Math.min(100, this.overdrive + grade.feverGain + Math.min(18, this.combo) + this.upgrades.rebate * 4);
-          this.score += Math.round((juice.scoreBonus * grade.scoreMultiplier + this.combo * 7 + this.nearChain * 35) * (1 + this.upgrades.rebate * 0.18 + this.save.meta.luck * 0.025));
+          const policy = autopilotCollisionPolicy(this.autopilotMs);
+          const activityMultiplier = activePlayScoreMultiplier({ manualInputs: this.manualControlInputs, elapsedSeconds: ROUND_SECONDS - this.timeLeft });
+          this.overdrive = Math.min(100, this.overdrive + grade.feverGain * policy.nearMissScoreMultiplier * activityMultiplier + Math.min(18, this.combo) + this.upgrades.rebate * 4);
+          this.score += Math.round((juice.scoreBonus * grade.scoreMultiplier + this.combo * 7 + this.nearChain * 35) * policy.nearMissScoreMultiplier * activityMultiplier * (1 + this.upgrades.rebate * 0.18 + this.save.meta.luck * 0.025));
           this.haptic(grade.grade === 'perfect' ? 'softMedium' : this.nearChain >= 3 ? 'tickMedium' : 'tickWeak');
           this.cameras.main.shake(Math.max(juice.freezeMs, grade.slowMoMs > 0 ? 32 : 0), grade.grade === 'perfect' ? juice.shake * 1.45 : juice.shake);
           if (grade.grade === 'perfect') {
@@ -3482,7 +3508,8 @@ class CometRushScene extends Phaser.Scene {
     const comboMultiplier = 1 + Math.min(this.combo, 36) * 0.045;
     const hpBonus = actor.kind === 'pulse' ? 0 : this.hp * 8;
     const rebateMultiplier = 1 + this.upgrades.rebate * 0.08 + this.save.meta.luck * 0.015 + (this.hasEvolution('autoRefund') ? 0.14 : 0);
-    this.score += Math.round((actor.value + hpBonus) * comboMultiplier * feverMultiplier * rebateMultiplier);
+    const activityMultiplier = activePlayScoreMultiplier({ manualInputs: this.manualControlInputs, elapsedSeconds: ROUND_SECONDS - this.timeLeft });
+    this.score += Math.round((actor.value + hpBonus) * comboMultiplier * feverMultiplier * rebateMultiplier * activityMultiplier);
     if (now - this.lastCollectBounceMs > 70) {
       this.lastCollectBounceMs = now;
       this.tweens.add({
@@ -3519,7 +3546,7 @@ class CometRushScene extends Phaser.Scene {
     }
 
     if (this.isPowerItem(actor.kind)) {
-      this.activatePowerItem(actor.kind, actor.image.x, actor.image.y);
+      this.collectPowerItem(actor.kind as PowerItemKind, actor.image.x, actor.image.y);
     }
 
     const centerComboColor = this.combo >= 24 ? '#fff4d8' : this.combo >= 8 ? '#9defff' : '#66ffc2';
@@ -3592,6 +3619,15 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private takeHit() {
+    const autopilotPolicy = autopilotCollisionPolicy(this.autopilotMs);
+    if (autopilotPolicy.invincible) {
+      this.score += 45;
+      this.haptic('basicMedium');
+      this.popText(this.player.x, this.player.y - 88, 'AI 방어봇 무적', '#cfc4ff');
+      this.bridge.log('autopilot_block', { score: this.score, timeLeft: Math.round(this.timeLeft * 10) / 10 }, 'event');
+      return;
+    }
+
     if (this.boosterMs > 0) {
       this.score += 90;
       this.haptic('basicMedium');
@@ -3728,7 +3764,7 @@ class CometRushScene extends Phaser.Scene {
       return `월급 부스터 ${(this.boosterMs / 1000).toFixed(1)}초 · 고지서 돌파`;
     }
     if (this.autopilotMs > 0) {
-      return `오토파일럿 ${(this.autopilotMs / 1000).toFixed(1)}초 · 자동 회피`;
+      return `AI 방어봇 ${(this.autopilotMs / 1000).toFixed(1)}초 · 무적/자동 회피`;
     }
     if (this.droneMs > 0) {
       return `재무팀 드론 ${(this.droneMs / 1000).toFixed(1)}초 · 근접 고지서 요격`;
@@ -3758,6 +3794,7 @@ class CometRushScene extends Phaser.Scene {
       Math.round(this.overdrive),
       feverSeconds,
       powerSeconds,
+      this.itemSlots.join(','),
       this.nearChain,
       this.phase,
     ].join('|');
@@ -5055,26 +5092,21 @@ class CometRushScene extends Phaser.Scene {
   }
 
   private rankLabel() {
-    if (this.score >= 300000) {
-      return 'RANK SSS';
-    }
-    if (this.score >= 200000) {
-      return 'RANK SS';
-    }
-    if (this.score >= 120000) {
-      return 'RANK S';
-    }
-    if (this.score >= 50000) {
-      return 'RANK A';
-    }
-    return 'RANK B';
+    return runRankLabel({
+      score: this.score,
+      nearMiss: this.nearMiss,
+      maxCombo: this.maxCombo,
+      shards: this.shards,
+      feverCount: this.feverCount,
+      survived: this.timeLeft <= 0,
+    });
   }
 
   private isHazard(kind: ActorKind) {
     return kind === 'hazard' || kind === 'rent' || kind === 'tax' || kind === 'sub';
   }
 
-  private isPowerItem(kind: ActorKind) {
+  private isPowerItem(kind: ActorKind): kind is PowerItemKind {
     return kind === 'magnetItem' || kind === 'shieldItem' || kind === 'autopilotItem' || kind === 'freezeItem' || kind === 'droneItem' || kind === 'boosterItem';
   }
 
@@ -5307,7 +5339,61 @@ class CometRushScene extends Phaser.Scene {
     this.popText(this.player.x, this.player.y - 120, '채무동결', '#9defff');
   }
 
-  private activatePowerItem(kind: ActorKind, x: number, y: number) {
+  private powerItemLabel(kind: PowerItemKind) {
+    if (kind === 'magnetItem') return '급여자석';
+    if (kind === 'shieldItem') return '파산보험';
+    if (kind === 'autopilotItem') return 'AI 방어봇';
+    if (kind === 'freezeItem') return '채무동결';
+    if (kind === 'droneItem') return '재무드론';
+    return '월급부스터';
+  }
+
+  private updateItemSlotHud() {
+    this.itemSlotLabels.forEach((label, index) => {
+      const item = this.itemSlots[index];
+      const slotName = index === 0 ? 'SLOT A' : 'SLOT B';
+      label.setText(item == null ? `${slotName}\n비어있음` : `${slotName}\n${this.powerItemLabel(item)}`);
+      label.setColor(item == null ? '#7eb5c9' : '#fff4d8');
+      this.fitText(label, 124, 10);
+    });
+  }
+
+  private collectPowerItem(kind: PowerItemKind, x: number, y: number) {
+    const stored = addHeldItem(this.itemSlots, kind);
+    this.itemSlots = stored.slots;
+    this.updateItemSlotHud();
+    if (!stored.added) {
+      this.popText(x, y - 34, '아이템 가득 참!', '#ffc857');
+      this.playTone([220, 196], 0.04, 0.06, 'triangle');
+      this.bridge.log('power_item_full', { kind, stage: this.currentStage().id, score: this.score }, 'event');
+      return;
+    }
+
+    this.popText(x, y - 34, `${this.powerItemLabel(kind)} 보관`, '#66ffc2');
+    this.playTone([523, 659, 880], 0.035, 0.075, 'triangle');
+    this.haptic('success');
+    this.bridge.log('power_item_store', { kind, slot: stored.index, stage: this.currentStage().id, score: this.score }, 'event');
+  }
+
+  private useHeldItem(index: number) {
+    if (this.phase !== 'playing') {
+      return;
+    }
+
+    const consumed = consumeHeldItem(this.itemSlots, index);
+    if (!consumed.consumed || consumed.item == null) {
+      this.popText(index === 0 ? 103 : GAME_WIDTH - 103, GAME_HEIGHT - 116, '슬롯 비어있음', '#ffc857');
+      this.haptic('tickWeak');
+      return;
+    }
+
+    this.itemSlots = consumed.slots;
+    this.updateItemSlotHud();
+    this.activatePowerItem(consumed.item, index === 0 ? 103 : GAME_WIDTH - 103, GAME_HEIGHT - 88);
+    this.bridge.log('power_item_use', { kind: consumed.item, slot: index, score: this.score, timeLeft: Math.round(this.timeLeft * 10) / 10 }, 'event');
+  }
+
+  private activatePowerItem(kind: PowerItemKind, x: number, y: number) {
     if (kind === 'magnetItem') {
       this.magnetMs = this.stackPowerDuration(this.magnetMs, 6200 + this.upgrades.magnet * 420, 12000);
       this.popText(x, y - 34, `급여자석 ${(this.magnetMs / 1000).toFixed(1)}초`, '#66ffc2');
@@ -5319,8 +5405,8 @@ class CometRushScene extends Phaser.Scene {
       this.playTone([392, 523, 784], 0.05, 0.08, 'triangle');
       this.haptic('success');
     } else if (kind === 'autopilotItem') {
-      this.autopilotMs = this.stackPowerDuration(this.autopilotMs, 2600, 5200);
-      this.popText(x, y - 34, `오토파일럿 ${(this.autopilotMs / 1000).toFixed(1)}초`, '#cfc4ff');
+      this.autopilotMs = this.stackPowerDuration(this.autopilotMs, 3500, 7000);
+      this.popText(x, y - 34, `AI 방어봇 ${(this.autopilotMs / 1000).toFixed(1)}초 · 무적`, '#cfc4ff');
       this.playTone([330, 494, 659, 988], 0.035, 0.075, 'square');
       this.haptic('softMedium');
     } else if (kind === 'freezeItem') {

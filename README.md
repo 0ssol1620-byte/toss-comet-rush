@@ -2,13 +2,13 @@
 
 토스 WebView 안에서 바로 플레이되는 60초 세로형 아케이드 게임입니다. 플레이어는 월급 금고를 드래그해 현금봉투, 코인, 시간 쿠폰, PAYDAY 오브를 모으고 카드값, 월세, 세금, 구독료를 피하면서 잔고를 지킵니다.
 
-현재 빌드는 `v18-reward-qa-hardening` 기준입니다. 핵심 목표는 “월급 지키기”라는 직관적인 브랜딩, 프리미엄 금융 앱형 랜딩, 첫 10초 이해도, 스테이지 맵/성장/결과 보상 루프, 그리고 앱인토스 WebView 안정성입니다.
+현재 빌드는 `v19-item-skill-balance` 기준입니다. 핵심 목표는 “월급 지키기”라는 직관적인 브랜딩, 프리미엄 금융 앱형 랜딩, 첫 10초 이해도, 스테이지 맵/성장/결과 보상 루프, 그리고 앱인토스 WebView 안정성입니다.
 
 공개 테스트 URL:
 
 ```text
 https://0ssol1620-byte.github.io/toss-comet-rush/
-https://0ssol1620-byte.github.io/toss-comet-rush/play-v18-reward-qa-hardening.html
+https://0ssol1620-byte.github.io/toss-comet-rush/play-v19-item-skill-balance.html
 ```
 
 ## 핵심 개선

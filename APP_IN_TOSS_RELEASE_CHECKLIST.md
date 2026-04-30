@@ -3,7 +3,7 @@
 ## 현재 기준
 
 - 제품명: 월급 지키기 (Toss Comet Rush)
-- 게임 버전: `v18-reward-qa-hardening`
+- 게임 버전: `v19-item-skill-balance`
 - 기본 해상도: 390 x 844
 - 대응 검증: 320 x 568, 390 x 844, 430 x 932, 1440 x 900
 - 렌더 증거: `artifacts/render-audit` 또는 Windows 환경 `C:\Users\yspow\toss-comet-rush\artifacts\render-audit`

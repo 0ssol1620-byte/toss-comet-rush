@@ -168,7 +168,7 @@ assert(source.includes("this.renderPauseLayer();"), 'pause overlay is not implem
 assert(source.includes("this.showUpgradeChoice"), 'run upgrade choice is not implemented');
 assert(source.includes("meta_upgrade_buy"), 'meta progression analytics are not implemented');
 assert(source.includes("'rent' | 'tax' | 'sub'"), 'expanded financial hazard types are not implemented');
-assert(source.includes("BUILD_VERSION = 'v18-reward-qa-hardening'"), 'source build stamp is not v18-reward-qa-hardening');
+assert(source.includes("BUILD_VERSION = 'v19-item-skill-balance'"), 'source build stamp is not v19-item-skill-balance');
 assert(source.includes("'월급 지키기'"), 'primary game title should be 월급 지키기');
 assert(!source.includes("'월급 방어전'"), 'old primary game title 월급 방어전 remains in source');
 assert(source.includes('createPremiumMenuBackdrop'), 'premium landing backdrop is not implemented');
@@ -181,7 +181,7 @@ assert(source.includes('MAX_DIFFICULTY = 4.85'), 'difficulty cap is not implemen
 assert(source.includes('최고 잔고'), 'menu copy should say 최고 잔고');
 assert(source.includes('STAGE ${stage.id} 시작'), 'menu start CTA should be stage-specific');
 assert(source.includes('60초, 잔고를 잃지 않는 가장 짜릿한 방법'), 'landing subtitle should be premium and focused');
-assert(readme.includes('v18-reward-qa-hardening') && checklist.includes('v18-reward-qa-hardening'), 'README/checklist should use the current v17 build stamp');
+assert(readme.includes('v19-item-skill-balance') && checklist.includes('v19-item-skill-balance'), 'README/checklist should use the current v17 build stamp');
 assert(readme.includes('월급 지키기') && checklist.includes('월급 지키기'), 'README/checklist should use 월급 지키기 naming');
 assert(!readme.includes('현재 빌드는 v10 기준입니다') && !checklist.includes('게임 버전: v10'), 'legacy v10 release wording remains in docs');
 assert(source.includes("type Phase = 'menu' | 'stageMap'"), 'stage map should be a real phase, not a stage cycling toast');
@@ -243,7 +243,7 @@ for (const target of exportsToCheck) {
   }
 
   const html = await readFile(target, 'utf8');
-  assert(html.includes('v18-reward-qa-hardening'), `export ${target} does not contain v18-reward-qa-hardening stamp`);
+  assert(html.includes('v19-item-skill-balance'), `export ${target} does not contain v19-item-skill-balance stamp`);
   assert(html.includes('월급 지키기'), `export ${target} does not contain 월급 지키기 title`);
   assert(html.includes('createPremiumMetricPill'), `export ${target} does not contain premium landing helper`);
   assert(html.includes('screen_onboarding'), `export ${target} does not contain onboarding screen analytics`);

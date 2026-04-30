@@ -43,6 +43,8 @@ export type WeeklyStats = {
 export type RareEventId = 'goldenSalary' | 'taxRefundRush' | 'bonusTime' | undefined;
 export type RewardAdState = 'unsupported' | 'idle' | 'loading' | 'loaded' | 'showing' | 'failed';
 export type RewardAdEvent = 'load' | 'loaded' | 'show' | 'rewarded' | 'closed' | 'failed' | 'unsupported';
+export type PowerItemKind = 'magnetItem' | 'shieldItem' | 'autopilotItem' | 'freezeItem' | 'droneItem' | 'boosterItem';
+export type HeldItemSlot = PowerItemKind | undefined;
 
 export const DAILY_MISSION_TARGETS = {
   shards: 90,
@@ -335,6 +337,56 @@ export function doubleRewardAdState(input: { claimed: boolean; usesToday: number
   if (input.usesToday >= input.dailyLimit) return { canShow: false, reason: 'limit' as DoubleRewardAdReason };
   if (!input.supported) return { canShow: false, reason: 'unsupported' as DoubleRewardAdReason };
   return { canShow: true, reason: 'ready' as DoubleRewardAdReason };
+}
+
+export function isHeldPowerItem(kind: ActorJuiceKind): kind is PowerItemKind {
+  return kind === 'magnetItem' || kind === 'shieldItem' || kind === 'autopilotItem' || kind === 'freezeItem' || kind === 'droneItem' || kind === 'boosterItem';
+}
+
+export function addHeldItem(slots: [HeldItemSlot, HeldItemSlot], item: PowerItemKind) {
+  const next: [HeldItemSlot, HeldItemSlot] = [...slots];
+  const emptyIndex = next.findIndex((slot) => slot == null);
+  if (emptyIndex < 0) {
+    return { slots: next, added: false, index: -1, reason: 'full' as const };
+  }
+
+  next[emptyIndex] = item;
+  return { slots: next, added: true, index: emptyIndex, reason: 'stored' as const };
+}
+
+export function consumeHeldItem(slots: [HeldItemSlot, HeldItemSlot], index: number) {
+  const next: [HeldItemSlot, HeldItemSlot] = [...slots];
+  const item = index === 0 || index === 1 ? next[index] : undefined;
+  if (item == null) {
+    return { slots: next, item: undefined, consumed: false };
+  }
+
+  next[index] = undefined;
+  return { slots: next, item, consumed: true };
+}
+
+export function autopilotCollisionPolicy(autopilotMs: number) {
+  return {
+    invincible: autopilotMs > 0,
+    nearMissScoreMultiplier: autopilotMs > 0 ? 0.5 : 1,
+    label: autopilotMs > 0 ? 'AI 방어봇 무적' : 'manual',
+  };
+}
+
+export function activePlayScoreMultiplier(input: { manualInputs: number; elapsedSeconds: number }) {
+  if (input.manualInputs >= 12) return 1;
+  if (input.manualInputs >= 5) return 0.78;
+  if (input.manualInputs >= 1) return 0.58;
+  return input.elapsedSeconds < 4 ? 0.7 : 0.34;
+}
+
+export function runRankLabel(input: { score: number; nearMiss: number; maxCombo: number; shards: number; feverCount: number; survived: boolean }) {
+  const skillScore = input.nearMiss * 950 + input.maxCombo * 620 + input.shards * 180 + input.feverCount * 7500 + (input.survived ? 12000 : 0);
+  if (input.score >= 420000 && skillScore >= 90000 && input.nearMiss >= 6 && input.maxCombo >= 28) return 'RANK SSS';
+  if (input.score >= 280000 && skillScore >= 52000 && input.maxCombo >= 18) return 'RANK SS';
+  if (input.score >= 150000 && skillScore >= 26000) return 'RANK S';
+  if (input.score >= 60000) return 'RANK A';
+  return 'RANK B';
 }
 
 export function frozenHazardSpeed(input: { baseSpeed: number; currentFrozenUntil: number; nowMs: number; durationMs: number; multiplier?: number }) {
